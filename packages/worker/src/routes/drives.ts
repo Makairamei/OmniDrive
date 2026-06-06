@@ -1,12 +1,35 @@
 import { Hono } from 'hono';
+import { setCookie } from 'hono/cookie';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { DriveService } from '../services/drive.service';
-import { mapDriveRow } from '../types';
+import { GoogleDriveService } from '../services/google-drive';
+import { mapDriveRow, mapDriveFolderRow } from '../types';
+import { generateId } from '../lib/id';
 
 export const drivesRouter = new Hono<AppContext>({ strict: false });
 
 drivesRouter.use('*', authGuard);
+
+drivesRouter.get('/connect', (c) => {
+  const env = c.env;
+  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
+  const scope = 'openid email profile https://www.googleapis.com/auth/drive';
+
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.append('client_id', env.GOOGLE_CLIENT_ID);
+  authUrl.searchParams.append('redirect_uri', redirectUri);
+  authUrl.searchParams.append('response_type', 'code');
+  authUrl.searchParams.append('scope', scope);
+  authUrl.searchParams.append('access_type', 'offline');
+  authUrl.searchParams.append('prompt', 'select_account consent');
+
+  const state = crypto.randomUUID();
+  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
+  authUrl.searchParams.append('state', state);
+
+  return c.redirect(authUrl.toString());
+});
 
 drivesRouter.get('/', async (c) => {
   const userId = c.get('userId');
@@ -18,37 +41,27 @@ drivesRouter.get('/', async (c) => {
     .all();
 
   const drives = results.map(mapDriveRow);
-  
-  // For each drive, fetch live quota if it hasn't been updated recently
-  // For simplicity in this demo, we'll fetch it live every time
+
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
     const tokenJson = await c.env.KV.get(`tokens:${drive.id}`);
     if (!tokenJson) return { ...drive, freeSpace: 0, usagePercent: 0 };
-    
+
     try {
       const tokens = JSON.parse(tokenJson);
       const driveService = new DriveService(c.env, drive.id, tokens);
       const quota = await driveService.getQuota();
-      
+
       const freeSpace = quota.total - quota.used;
       const usagePercent = quota.total > 0 ? (quota.used / quota.total) * 100 : 0;
 
-      // Update DB in background
       c.executionCtx.waitUntil(
         db.prepare('UPDATE drive_accounts SET total_quota = ?, used_quota = ?, quota_updated_at = datetime("now") WHERE id = ?')
           .bind(quota.total, quota.used, drive.id).run()
       );
 
-      return {
-        ...drive,
-        totalQuota: quota.total,
-        usedQuota: quota.used,
-        freeSpace,
-        usagePercent,
-      };
+      return { ...drive, totalQuota: quota.total, usedQuota: quota.used, freeSpace, usagePercent };
     } catch (e) {
       console.error(`Failed to fetch quota for drive ${drive.id}`, e);
-      // Fallback to cached DB values
       const freeSpace = Math.max(0, drive.totalQuota - drive.usedQuota);
       const usagePercent = drive.totalQuota > 0 ? (drive.usedQuota / drive.totalQuota) * 100 : 0;
       return { ...drive, freeSpace, usagePercent };
@@ -65,15 +78,187 @@ drivesRouter.get('/', async (c) => {
   return c.json({ drives: drivesWithQuota, aggregate });
 });
 
+// ─── Folder read endpoint (from DB, no Google API call) ───
+
+drivesRouter.get('/:driveId/folders/:googleFolderId', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+
+  const drive = await c.env.DB
+    .prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+
+  if (!drive) return c.json({ error: 'Drive not found' }, 404);
+
+  const folder = googleFolderId === 'root'
+    ? null
+    : await c.env.DB
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+        .bind(driveId, googleFolderId)
+        .first();
+
+  const subfolderResult = googleFolderId === 'root'
+    ? await c.env.DB
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id IS NULL')
+        .bind(driveId)
+        .all()
+    : await c.env.DB
+        .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?')
+        .bind(driveId, googleFolderId)
+        .all();
+
+  const filesResult = await c.env.DB
+    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ?')
+    .bind(driveId, googleFolderId)
+    .all();
+
+  return c.json({
+    folder: folder
+      ? mapDriveFolderRow(folder as Record<string, unknown>)
+      : { googleFolderId: 'root', name: 'My Drive', isSynced: true },
+    subfolders: subfolderResult.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
+    files: filesResult.results,
+  });
+});
+
+// ─── Lazy folder sync endpoint ───
+
+drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
+  const userId = c.get('userId');
+  const { driveId, googleFolderId } = c.req.param();
+
+  const driveRow = await c.env.DB
+    .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveId, userId)
+    .first();
+
+  if (!driveRow) return c.json({ error: 'Drive not found' }, 404);
+
+  const folder = await c.env.DB
+    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(driveId, googleFolderId)
+    .first();
+
+  // Idempotency: already synced — return existing DB data
+  if (folder && (folder as Record<string, unknown>).is_synced) {
+    const subfolders = await c.env.DB
+      .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?')
+      .bind(driveId, googleFolderId)
+      .all();
+    const files = await c.env.DB
+      .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ?')
+      .bind(driveId, googleFolderId)
+      .all();
+    return c.json({
+      folder: mapDriveFolderRow(folder as Record<string, unknown>),
+      subfolders: subfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
+      files: files.results,
+    });
+  }
+
+  // Fetch tokens — support both key prefixes
+  const tokenJson = await c.env.KV.get(`tokens:${driveId}`) ?? await c.env.KV.get(`oauth:${driveId}`);
+  if (!tokenJson) return c.json({ error: 'No tokens for drive' }, 400);
+
+  // Ensure available under oauth: prefix for GoogleDriveService
+  await c.env.KV.put(`oauth:${driveId}`, tokenJson);
+
+  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET);
+  const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, googleFolderId);
+
+  const ownerUserId = (driveRow as Record<string, unknown>).user_id as string;
+
+  for (const gFolder of gFolders) {
+    const existing = await c.env.DB
+      .prepare('SELECT id FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+      .bind(driveId, gFolder.id)
+      .first<{ id: string }>();
+
+    if (existing) {
+      await c.env.DB
+        .prepare('UPDATE drive_folders SET name = ?, google_parent_id = ? WHERE id = ?')
+        .bind(gFolder.name, googleFolderId, existing.id)
+        .run();
+    } else {
+      await c.env.DB
+        .prepare(
+          'INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced) VALUES (?, ?, ?, ?, ?, 0)'
+        )
+        .bind(generateId(), driveId, gFolder.id, googleFolderId, gFolder.name)
+        .run();
+    }
+  }
+
+  for (const gFile of gFiles) {
+    const existing = await c.env.DB
+      .prepare('SELECT id FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+      .bind(driveId, gFile.id)
+      .first<{ id: string }>();
+
+    if (existing) {
+      await c.env.DB
+        .prepare(
+          `UPDATE files SET name = ?, mime_type = ?, size = ?, thumbnail_url = ?, web_view_link = ?,
+           web_content_link = ?, google_modified_at = ?, google_parent_id = ?, synced_at = datetime('now')
+           WHERE id = ?`
+        )
+        .bind(
+          gFile.name, gFile.mimeType, parseInt(gFile.size ?? '0', 10),
+          gFile.thumbnailLink ?? null, gFile.webViewLink ?? null, gFile.webContentLink ?? null,
+          gFile.modifiedTime, googleFolderId, existing.id
+        )
+        .run();
+    } else {
+      await c.env.DB
+        .prepare(
+          `INSERT INTO files (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
+             thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          generateId(), ownerUserId, driveId, gFile.id, googleFolderId,
+          gFile.name, gFile.mimeType, parseInt(gFile.size ?? '0', 10),
+          gFile.thumbnailLink ?? null, gFile.webViewLink ?? null, gFile.webContentLink ?? null,
+          gFile.createdTime, gFile.modifiedTime
+        )
+        .run();
+    }
+  }
+
+  // Mark folder as synced
+  if (folder) {
+    await c.env.DB
+      .prepare(`UPDATE drive_folders SET is_synced = 1, synced_at = datetime('now') WHERE drive_account_id = ? AND google_folder_id = ?`)
+      .bind(driveId, googleFolderId)
+      .run();
+  }
+
+  const newSubfolders = await c.env.DB
+    .prepare('SELECT * FROM drive_folders WHERE drive_account_id = ? AND google_parent_id = ?')
+    .bind(driveId, googleFolderId)
+    .all();
+  const newFiles = await c.env.DB
+    .prepare('SELECT * FROM files WHERE drive_account_id = ? AND google_parent_id = ?')
+    .bind(driveId, googleFolderId)
+    .all();
+
+  return c.json({
+    folder: folder ? mapDriveFolderRow(folder as Record<string, unknown>) : null,
+    subfolders: newSubfolders.results.map(r => mapDriveFolderRow(r as Record<string, unknown>)),
+    files: newFiles.results,
+  });
+});
+
 drivesRouter.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const driveId = c.req.param('id');
-  
-  // D1 cascade delete will handle files
+
   await c.env.DB.prepare('DELETE FROM drive_accounts WHERE id = ? AND user_id = ?')
     .bind(driveId, userId).run();
-    
+
   await c.env.KV.delete(`tokens:${driveId}`);
-  
+  await c.env.KV.delete(`oauth:${driveId}`);
+
   return c.json({ success: true });
 });

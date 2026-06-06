@@ -1,7 +1,24 @@
-import { MoreVertical, Download, Trash2, Pencil } from 'lucide-react';
+import { MoreVertical, Download, Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { getFileIcon, formatFileSize, formatRelativeTime } from '../lib/utils';
 import type { FileEntry } from '../types';
 import { useState } from 'react';
+
+function getGoogleNativeBadge(mimeType: string | null): string | null {
+  if (!mimeType) return null;
+  const badges: Record<string, string> = {
+    'application/vnd.google-apps.document': 'G Doc',
+    'application/vnd.google-apps.spreadsheet': 'G Sheet',
+    'application/vnd.google-apps.presentation': 'G Slides',
+    'application/vnd.google-apps.form': 'G Form',
+    'application/vnd.google-apps.drawing': 'G Drawing',
+    'application/vnd.google-apps.sites.page': 'G Sites',
+  };
+  return badges[mimeType] ?? null;
+}
+
+function isGoogleNative(mimeType: string | null): boolean {
+  return !!mimeType && mimeType.startsWith('application/vnd.google-apps.');
+}
 
 interface FileCardProps {
   file: FileEntry;
@@ -13,16 +30,29 @@ interface FileCardProps {
 
 export function FileCard({ file, driveColor, onDelete, onRename, onPreview }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const badge = getGoogleNativeBadge(file.mimeType);
+  const native = isGoogleNative(file.mimeType);
+
+  const handleClick = () => {
+    if (native && file.webViewLink) {
+      window.open(file.webViewLink, '_blank', 'noopener,noreferrer');
+    } else {
+      onPreview?.(file);
+    }
+  };
 
   return (
-    <div className="file-card" onClick={() => onPreview?.(file)}>
+    <div className="file-card" onClick={handleClick}>
       <div className="file-card-icon">{getFileIcon(file.mimeType)}</div>
       <div className="file-card-info">
-        <div className="file-card-name truncate">{file.name}</div>
+        <div className="file-card-name truncate">
+          {file.name}
+          {badge && <span className="file-badge">{badge}</span>}
+        </div>
         <div className="file-card-meta">
           <div className="drive-dot" style={{ backgroundColor: driveColor }} />
-          <span>{formatFileSize(file.size)}</span>
-          <span>·</span>
+          {!native && <span>{formatFileSize(file.size)}</span>}
+          {!native && <span>·</span>}
           <span>{formatRelativeTime(file.googleModifiedAt ?? file.createdAt)}</span>
         </div>
       </div>
@@ -32,7 +62,12 @@ export function FileCard({ file, driveColor, onDelete, onRename, onPreview }: Fi
         </button>
         {menuOpen && (
           <div className="file-card-menu">
-            {file.webContentLink && (
+            {native && file.webViewLink && (
+              <a href={file.webViewLink} target="_blank" rel="noopener noreferrer" className="file-card-menu-item">
+                <ExternalLink size={14} /> Open in Google
+              </a>
+            )}
+            {!native && file.webContentLink && (
               <a href={file.webContentLink} target="_blank" rel="noopener noreferrer" className="file-card-menu-item">
                 <Download size={14} /> Download
               </a>

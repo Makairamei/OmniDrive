@@ -49,49 +49,73 @@ authRouter.get('/callback', async (c) => {
   // 2. Get user info
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
-  // 3. Upsert user in D1
+  // 3. Get existing session (to check if we are connecting a drive vs logging in)
+  const sid = getCookie(c, 'omnidrive_sid');
+  let currentUserId: string | null = null;
+  if (sid) {
+    const sessionJson = await env.KV.get(`session:${sid}`);
+    if (sessionJson) {
+      currentUserId = JSON.parse(sessionJson).userId;
+    }
+  }
+
   const db = env.DB;
-  let user = await db.prepare('SELECT id FROM users WHERE google_id = ?').bind(googleUser.id).first<{ id: string }>();
-  
-  if (!user) {
-    const userId = generateId();
-    await db.prepare(
-      'INSERT INTO users (id, google_id, email, name, avatar_url) VALUES (?, ?, ?, ?, ?)'
-    ).bind(userId, googleUser.id, googleUser.email, googleUser.name, googleUser.picture).run();
-    user = { id: userId };
+  let targetUserId: string;
+
+  if (currentUserId) {
+    targetUserId = currentUserId;
+  } else {
+    // Normal Login: Upsert user in D1
+    let user = await db.prepare('SELECT id FROM users WHERE google_id = ?').bind(googleUser.id).first<{ id: string }>();
+    
+    if (!user) {
+      const newUserId = generateId();
+      await db.prepare(
+        'INSERT INTO users (id, google_id, email, name, avatar_url) VALUES (?, ?, ?, ?, ?)'
+      ).bind(newUserId, googleUser.id, googleUser.email, googleUser.name, googleUser.picture).run();
+      targetUserId = newUserId;
+    } else {
+      targetUserId = user.id;
+    }
   }
 
   // 3b. Upsert drive account and save tokens
-  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ?').bind(googleUser.id).first<{ id: string }>();
+  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first<{ id: string }>();
   if (!drive) {
     const driveId = generateId();
+    // Check if user already has drives to determine is_primary
+    const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first<{ count: number }>();
+    const isPrimary = (res && res.count === 0) ? 1 : 0;
+
     await db.prepare(
       'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(driveId, user.id, googleUser.id, googleUser.email, googleUser.name, 'oauth', 1).run();
+    ).bind(driveId, targetUserId, googleUser.id, googleUser.email, googleUser.name, 'oauth', isPrimary).run();
     drive = { id: driveId };
   }
   await env.KV.put(`tokens:${drive.id}`, JSON.stringify(tokens));
 
-  // 4. Create session
-  const sessionId = generateId();
-  const sessionData: SessionData = {
-    userId: user.id,
-    email: googleUser.email,
-    name: googleUser.name,
-    avatarUrl: googleUser.picture,
-  };
+  // 4. Create session ONLY if we are logging in (no current session)
+  if (!currentUserId) {
+    const sessionId = generateId();
+    const sessionData: SessionData = {
+      userId: targetUserId,
+      email: googleUser.email,
+      name: googleUser.name,
+      avatarUrl: googleUser.picture,
+    };
 
-  await env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), {
-    expirationTtl: 60 * 60 * 24 * 7, // 7 days
-  });
+    await env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), {
+      expirationTtl: 60 * 60 * 24 * 7, // 7 days
+    });
 
-  setCookie(c, 'omnidrive_sid', sessionId, {
-    path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: 'None',
-    maxAge: 60 * 60 * 24 * 7,
-  });
+    setCookie(c, 'omnidrive_sid', sessionId, {
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'None',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+  }
 
   return c.redirect(`${env.FRONTEND_URL}/`);
 });

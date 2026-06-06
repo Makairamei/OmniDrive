@@ -42,6 +42,7 @@ export interface FileEntry {
   driveAccountId: string;
   googleFileId: string;
   virtualFolderId: string | null;
+  googleParentId: string | null;
   name: string;
   mimeType: string | null;
   size: number;
@@ -61,6 +62,17 @@ export interface SyncState {
   lastSyncedAt: string | null;
   status: 'idle' | 'syncing' | 'error';
   errorMessage: string | null;
+}
+
+export interface DriveFolder {
+  id: string;
+  driveAccountId: string;
+  googleFolderId: string;
+  googleParentId: string | null;
+  name: string;
+  isSynced: boolean;
+  syncedAt: string | null;
+  createdAt: string;
 }
 
 // ─── KV Types ───
@@ -160,6 +172,7 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     driveAccountId: row.drive_account_id as string,
     googleFileId: row.google_file_id as string,
     virtualFolderId: (row.virtual_folder_id as string) ?? null,
+    googleParentId: (row.google_parent_id as string) ?? null,
     name: row.name as string,
     mimeType: (row.mime_type as string) ?? null,
     size: (row.size as number) ?? 0,
@@ -170,6 +183,19 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     googleCreatedAt: (row.google_created_at as string) ?? null,
     googleModifiedAt: (row.google_modified_at as string) ?? null,
     syncedAt: row.synced_at as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
+  return {
+    id: row.id as string,
+    driveAccountId: row.drive_account_id as string,
+    googleFolderId: row.google_folder_id as string,
+    googleParentId: (row.google_parent_id as string) ?? null,
+    name: row.name as string,
+    isSynced: row.is_synced === 1,
+    syncedAt: (row.synced_at as string) ?? null,
     createdAt: row.created_at as string,
   };
 }

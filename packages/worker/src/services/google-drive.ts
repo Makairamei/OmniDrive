@@ -3,6 +3,26 @@ import type { OAuthTokens, QuotaCache } from '../types/index';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+export interface GDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  parents?: string[];
+  trashed?: boolean;
+  thumbnailLink?: string;
+  webViewLink?: string;
+  webContentLink?: string;
+  createdTime: string;
+  modifiedTime: string;
+}
+
+export interface GDriveFolder {
+  id: string;
+  name: string;
+  parents?: string[];
+}
+
 export class GoogleDriveService {
   constructor(
     private kv: KVNamespace,
@@ -328,5 +348,46 @@ export class GoogleDriveService {
     } while (pageToken);
 
     return allFiles;
+  }
+
+  // ─── Full Folder Contents (files + subfolders) ───
+
+  async listFolderContents(
+    driveAccountId: string,
+    folderId: string
+  ): Promise<{ files: GDriveFile[]; folders: GDriveFolder[] }> {
+    const token = await this.getValidToken(driveAccountId);
+    const fields =
+      'nextPageToken,files(id,name,mimeType,size,parents,trashed,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime)';
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+
+    const allFiles: GDriveFile[] = [];
+    const allFolders: GDriveFolder[] = [];
+    let pageToken: string | undefined;
+
+    do {
+      const url = `${DRIVE_API}/files?q=${q}&fields=nextPageToken,${fields}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to list folder contents: ${await response.text()}`);
+      }
+
+      const data: { files: GDriveFile[]; nextPageToken?: string } = await response.json();
+
+      for (const item of data.files) {
+        if (item.mimeType === 'application/vnd.google-apps.folder') {
+          allFolders.push({ id: item.id, name: item.name, parents: item.parents });
+        } else if (item.mimeType !== 'application/vnd.google-apps.shortcut') {
+          allFiles.push(item);
+        }
+      }
+
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return { files: allFiles, folders: allFolders };
   }
 }

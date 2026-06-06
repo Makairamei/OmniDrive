@@ -43,6 +43,11 @@ export const api = {
       body: JSON.stringify({ credentials, folderId }),
     }),
   triggerSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
+  getDriveFolderContents: (driveId: string, googleFolderId: string) =>
+    request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),
+  syncDriveFolder: (driveId: string, googleFolderId: string) =>
+    request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}/sync`, { method: 'POST' }),
+
 
   // Folders
   getRootContents: () => request<import('../types').FolderContents>('/api/folders/'),

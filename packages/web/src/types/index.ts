@@ -49,6 +49,7 @@ export interface FileEntry {
   driveAccountId: string;
   googleFileId: string;
   virtualFolderId: string | null;
+  googleParentId: string | null;
   name: string;
   mimeType: string | null;
   size: number;
@@ -73,6 +74,22 @@ export interface FolderContents {
   subfolders: VirtualFolder[];
   files: FileEntry[];
   breadcrumb: BreadcrumbItem[];
+}
+
+export interface DriveFolder {
+  id?: string;
+  driveAccountId?: string;
+  googleFolderId: string;
+  googleParentId?: string | null;
+  name: string;
+  isSynced: boolean;
+  syncedAt?: string | null;
+}
+
+export interface DriveFolderContents {
+  folder: DriveFolder | null;
+  subfolders: DriveFolder[];
+  files: FileEntry[];
 }
 
 export interface UploadInitResponse {

@@ -26,6 +26,19 @@ CREATE TABLE IF NOT EXISTS drive_accounts (
     UNIQUE(user_id, google_account_id)
 );
 
+-- Google Drive folder structure (mirrored, read-only)
+CREATE TABLE IF NOT EXISTS drive_folders (
+    id                TEXT PRIMARY KEY,
+    drive_account_id  TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE,
+    google_folder_id  TEXT NOT NULL,
+    google_parent_id  TEXT,
+    name              TEXT NOT NULL,
+    is_synced         INTEGER NOT NULL DEFAULT 0,
+    synced_at         TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(drive_account_id, google_folder_id)
+);
+
 -- Virtual folder structure (Omnidrive-only, not in Google Drive)
 CREATE TABLE IF NOT EXISTS virtual_folders (
     id              TEXT PRIMARY KEY,
@@ -46,6 +59,7 @@ CREATE TABLE IF NOT EXISTS files (
     drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE,
     google_file_id  TEXT NOT NULL,
     virtual_folder_id TEXT REFERENCES virtual_folders(id) ON DELETE SET NULL,
+    google_parent_id TEXT,
     name            TEXT NOT NULL,
     mime_type       TEXT,
     size            INTEGER DEFAULT 0,
@@ -73,5 +87,8 @@ CREATE TABLE IF NOT EXISTS sync_state (
 CREATE INDEX IF NOT EXISTS idx_files_user_folder ON files(user_id, virtual_folder_id);
 CREATE INDEX IF NOT EXISTS idx_files_drive ON files(drive_account_id);
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, google_parent_id);
 CREATE INDEX IF NOT EXISTS idx_folders_user_parent ON virtual_folders(user_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_drive_folders_parent ON drive_folders(drive_account_id, google_parent_id);
+

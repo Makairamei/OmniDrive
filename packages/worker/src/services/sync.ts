@@ -1,6 +1,6 @@
 import type { DriveAccount } from '../types/index';
 import { mapDriveRow } from '../types/index';
-import { GoogleDriveService } from './google-drive';
+import { GoogleDriveService, type GDriveFile, type GDriveFolder } from './google-drive';
 import { generateId } from '../lib/id';
 
 export async function syncDriveAccount(
@@ -9,12 +9,6 @@ export async function syncDriveAccount(
   _kv: KVNamespace,
   driveService: GoogleDriveService
 ): Promise<void> {
-  // Skip drives without root folder
-  if (!drive.rootFolderId) {
-    console.log(`Skipping sync for ${drive.email}: no root folder`);
-    return;
-  }
-
   // Update status to syncing
   await db
     .prepare("UPDATE sync_state SET status = 'syncing', error_message = NULL WHERE drive_account_id = ?")
@@ -22,7 +16,6 @@ export async function syncDriveAccount(
     .run();
 
   try {
-    // Get sync state
     const syncState = await db
       .prepare('SELECT * FROM sync_state WHERE drive_account_id = ?')
       .bind(drive.id)
@@ -30,16 +23,13 @@ export async function syncDriveAccount(
 
     let changeToken = syncState?.change_token as string | null;
 
-    // If no change token, do initial sync
     if (!changeToken) {
       await performInitialSync(drive, db, driveService);
       changeToken = await driveService.getStartPageToken(drive.id);
     } else {
-      // Incremental sync via Changes API
       changeToken = await performIncrementalSync(drive, db, changeToken, driveService);
     }
 
-    // Update sync state
     await db
       .prepare(
         "UPDATE sync_state SET change_token = ?, last_synced_at = datetime('now'), status = 'idle' WHERE drive_account_id = ?"
@@ -47,11 +37,10 @@ export async function syncDriveAccount(
       .bind(changeToken, drive.id)
       .run();
 
-    // Refresh quota cache
     try {
       await driveService.getQuota(drive.id);
     } catch {
-      // Non-fatal: quota refresh can fail
+      // Non-fatal
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -69,25 +58,16 @@ async function performInitialSync(
   db: D1Database,
   driveService: GoogleDriveService
 ): Promise<void> {
-  console.log(`Initial sync for ${drive.email}`);
+  console.log(`Initial sync for ${drive.email} — crawling Drive root`);
 
-  const files = await driveService.listFilesInFolder(drive.id, drive.rootFolderId!);
+  const { files, folders } = await driveService.listFolderContents(drive.id, 'root');
+
+  for (const folder of folders) {
+    await upsertDriveFolder(db, drive, folder, null);
+  }
 
   for (const file of files) {
-    // Skip folders
-    if (file.mimeType === 'application/vnd.google-apps.folder') continue;
-
-    await upsertFile(db, drive, {
-      id: file.id,
-      name: file.name,
-      mimeType: file.mimeType,
-      size: file.size,
-      thumbnailLink: file.thumbnailLink,
-      webViewLink: file.webViewLink,
-      webContentLink: file.webContentLink,
-      createdTime: file.createdTime,
-      modifiedTime: file.modifiedTime,
-    });
+    await upsertFile(db, drive, file, 'root');
   }
 }
 
@@ -106,42 +86,35 @@ async function performIncrementalSync(
     const response = await driveService.listChanges(drive.id, currentToken);
 
     for (const change of response.changes) {
-      // File removed entirely
-      if (change.removed) {
-        await db
-          .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
-          .bind(drive.id, change.fileId)
-          .run();
+      const isFolder = change.file?.mimeType === 'application/vnd.google-apps.folder';
+
+      if (change.removed || change.file?.trashed) {
+        if (isFolder) {
+          await db
+            .prepare('DELETE FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+            .bind(drive.id, change.fileId)
+            .run();
+        } else {
+          await db
+            .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+            .bind(drive.id, change.fileId)
+            .run();
+        }
         continue;
       }
 
       const file = change.file;
       if (!file) continue;
 
-      // Skip folders
-      if (file.mimeType === 'application/vnd.google-apps.folder') continue;
+      if (file.mimeType === 'application/vnd.google-apps.shortcut') continue;
 
-      // File trashed or not in Omnidrive folder
-      if (file.trashed || !file.parents?.includes(drive.rootFolderId!)) {
-        await db
-          .prepare('DELETE FROM files WHERE drive_account_id = ? AND google_file_id = ?')
-          .bind(drive.id, change.fileId)
-          .run();
-        continue;
+      const parentId = file.parents?.[0] ?? null;
+
+      if (isFolder) {
+        await upsertDriveFolder(db, drive, { id: file.id, name: file.name, parents: file.parents }, parentId);
+      } else {
+        await upsertFile(db, drive, file as unknown as GDriveFile, parentId ?? 'root');
       }
-
-      // File created or modified within Omnidrive folder
-      await upsertFile(db, drive, {
-        id: file.id,
-        name: file.name,
-        mimeType: file.mimeType,
-        size: file.size,
-        thumbnailLink: file.thumbnailLink,
-        webViewLink: file.webViewLink,
-        webContentLink: file.webContentLink,
-        createdTime: file.createdTime,
-        modifiedTime: file.modifiedTime,
-      });
     }
 
     if (response.newStartPageToken) {
@@ -154,37 +127,56 @@ async function performIncrementalSync(
       hasMore = false;
     }
   }
-  
+
   return currentToken;
 }
 
+async function upsertDriveFolder(
+  db: D1Database,
+  drive: DriveAccount,
+  folder: GDriveFolder,
+  googleParentId: string | null
+): Promise<void> {
+  const existing = await db
+    .prepare('SELECT id FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+    .bind(drive.id, folder.id)
+    .first<{ id: string }>();
 
+  if (existing) {
+    await db
+      .prepare('UPDATE drive_folders SET name = ?, google_parent_id = ? WHERE id = ?')
+      .bind(folder.name, googleParentId, existing.id)
+      .run();
+  } else {
+    const folderId = generateId();
+    await db
+      .prepare(
+        `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
+         VALUES (?, ?, ?, ?, ?, 0)`
+      )
+      .bind(folderId, drive.id, folder.id, googleParentId, folder.name)
+      .run();
+  }
+}
 
 async function upsertFile(
   db: D1Database,
   drive: DriveAccount,
-  file: {
-    id: string;
-    name: string;
-    mimeType: string;
-    size?: string;
-    thumbnailLink?: string;
-    webViewLink?: string;
-    webContentLink?: string;
-    createdTime: string;
-    modifiedTime: string;
-  }
+  file: GDriveFile,
+  googleParentId: string
 ): Promise<void> {
   const existing = await db
-    .prepare('SELECT id, virtual_folder_id FROM files WHERE drive_account_id = ? AND google_file_id = ?')
+    .prepare('SELECT id FROM files WHERE drive_account_id = ? AND google_file_id = ?')
     .bind(drive.id, file.id)
-    .first();
+    .first<{ id: string }>();
 
   if (existing) {
-    // Update existing file metadata, preserve virtual_folder_id
     await db
       .prepare(
-        `UPDATE files SET name = ?, mime_type = ?, size = ?, thumbnail_url = ?, web_view_link = ?, web_content_link = ?, google_modified_at = ?, synced_at = datetime('now')
+        `UPDATE files
+         SET name = ?, mime_type = ?, size = ?, thumbnail_url = ?, web_view_link = ?,
+             web_content_link = ?, google_modified_at = ?, google_parent_id = ?,
+             synced_at = datetime('now')
          WHERE id = ?`
       )
       .bind(
@@ -195,22 +187,25 @@ async function upsertFile(
         file.webViewLink ?? null,
         file.webContentLink ?? null,
         file.modifiedTime,
-        existing.id as string
+        googleParentId,
+        existing.id
       )
       .run();
   } else {
-    // Insert new file
     const fileId = generateId();
     await db
       .prepare(
-        `INSERT INTO files (id, user_id, drive_account_id, google_file_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO files
+           (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
+            thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         fileId,
         drive.userId,
         drive.id,
         file.id,
+        googleParentId,
         file.name,
         file.mimeType,
         parseInt(file.size ?? '0', 10),
@@ -224,18 +219,24 @@ async function upsertFile(
   }
 }
 
-export async function runScheduledSync(env: { DB: D1Database; KV: KVNamespace; GOOGLE_CLIENT_ID: string; GOOGLE_CLIENT_SECRET: string }): Promise<void> {
+export async function runScheduledSync(env: {
+  DB: D1Database;
+  KV: KVNamespace;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+}): Promise<void> {
   const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
 
-  // Get all drive accounts
   const rows = await env.DB.prepare("SELECT * FROM drive_accounts WHERE type = 'oauth'").all();
   const driveAccounts = (rows.results ?? []).map(mapDriveRow);
 
   console.log(`Syncing ${driveAccounts.length} drive accounts`);
 
-  await Promise.allSettled(driveAccounts.map(drive => 
-    syncDriveAccount(drive, env.DB, env.KV, driveService).catch(err => {
-      console.error(`Sync error for ${drive.email}:`, err);
-    })
-  ));
+  await Promise.allSettled(
+    driveAccounts.map((drive) =>
+      syncDriveAccount(drive, env.DB, env.KV, driveService).catch((err) => {
+        console.error(`Sync error for ${drive.email}:`, err);
+      })
+    )
+  );
 }
