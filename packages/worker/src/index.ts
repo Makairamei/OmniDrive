@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/error-handler';
 
 import { authRouter } from './routes/auth';
+import { drivesRouter } from './routes/drives';
 
 const app = new Hono<AppContext>();
 
@@ -12,6 +13,7 @@ app.use('*', corsMiddleware());
 app.use('*', errorHandler);
 
 app.route('/api/auth', authRouter);
+app.route('/api/drives', drivesRouter);
 
 // Health check (public)
 app.get('/api/health', (c) => {
