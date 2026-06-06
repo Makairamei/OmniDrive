@@ -26,7 +26,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
     setErrorDrives(new Set());
 
     try {
-      if (folderId === 'root' || !driveIdParam) {
+      if (folderId === 'root') {
         // Fetch all drives concurrently at root
         const promises = drives.map(drive => 
           api.getDriveFolderContents(drive.id, 'root')
@@ -45,6 +45,10 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         
         setSubfolders(mergedFolders);
         setFiles(mergedFiles);
+      } else if (!driveIdParam) {
+        addToast('error', 'Missing drive information for folder');
+        setIsLoading(false);
+        return;
       } else {
         // Fetch specific sub-folder for a specific drive
         const data = await api.getDriveFolderContents(driveIdParam, folderId);

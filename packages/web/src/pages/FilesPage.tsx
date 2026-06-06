@@ -7,7 +7,7 @@ import { DriveFolderCard } from '../components/DriveFolderCard';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { Upload, ArrowLeft } from 'lucide-react';
+import { Upload, ArrowLeft, FolderPlus, X } from 'lucide-react';
 import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 import { useMergedDrive } from '../hooks/useMergedDrive';
@@ -21,9 +21,10 @@ export function FilesPage() {
   const navigate = useNavigate();
   
   const drives = useDriveStore(state => state.drives);
-  const { showModal, setShowModal, addFiles } = useUploadStore();
+  const { showModal, setShowModal } = useUploadStore();
   const { addToast } = useToastStore();
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { subfolders, files, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
@@ -46,6 +47,18 @@ export function FilesPage() {
       refresh();
     } catch {
       addToast('error', 'Failed to rename file');
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = prompt('New folder name:');
+    if (name?.trim()) {
+      try {
+        await api.createFolder(name.trim(), folderId === 'root' ? undefined : folderId);
+        refresh();
+      } catch {
+        addToast('error', 'Failed to create folder');
+      }
     }
   };
 
@@ -74,15 +87,29 @@ export function FilesPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.multiple = true;
-            input.onchange = () => {
-              if (input.files?.length) addFiles(Array.from(input.files));
-            };
-            input.click();
-          }}>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Filter files..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: 200, paddingRight: 28 }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)' }}
+                onClick={() => setSearchQuery('')}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={handleCreateFolder}>
+            <FolderPlus size={16} /> New Folder
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
             <Upload size={16} /> Upload
           </button>
         </div>
@@ -101,7 +128,7 @@ export function FilesPage() {
         </div>
       ) : (
         <div className="card" style={{ padding: 'var(--space-sm)' }}>
-          {subfolders.map((folder) => {
+          {subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((folder) => {
             const { drive, index } = getDriveInfo(folder.driveAccountId);
             return (
               <DriveFolderCard
@@ -123,7 +150,7 @@ export function FilesPage() {
             <div style={{ borderTop: '1px solid var(--border-subtle)', margin: 'var(--space-xs) var(--space-md)' }} />
           )}
 
-          {files.map((file) => {
+          {files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((file) => {
             const { drive, index } = getDriveInfo(file.driveAccountId);
             return (
               <FileCard
