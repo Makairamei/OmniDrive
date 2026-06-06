@@ -7,12 +7,12 @@ crons = ["*/30 * * * *"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "omnidrive-db"
-database_id = "local"
+database_name = "omnidrive"
+database_id = "72bd51b7-0869-4ead-9712-a76237904d81"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "local"
+id = "e1938e5a2fce4999bd1556612cccfeaa"
 
 [vars]
 FRONTEND_URL = "http://localhost:5173"

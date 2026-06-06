@@ -16,7 +16,7 @@ export function LoginPage() {
           </div>
         )}
 
-        <a href="/api/auth/login" className="btn btn-primary btn-lg login-btn">
+        <a href={`${import.meta.env.VITE_API_URL || ''}/api/auth/google`} className="btn btn-primary btn-lg login-btn">
           <LogIn size={20} />
           Sign in with Google
         </a>
