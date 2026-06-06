@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
+import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { DriveService } from '../services/drive.service';
@@ -42,6 +43,11 @@ filesRouter.patch('/:id/move', async (c) => {
   const fileId = c.req.param('id');
   const { folderId } = await c.req.json();
 
+  if (folderId) {
+    const folder = await c.env.DB.prepare('SELECT id FROM virtual_folders WHERE id = ? AND user_id = ?').bind(folderId, userId).first();
+    if (!folder) throw new AppError(404, 'Target folder not found or unauthorized');
+  }
+
   await c.env.DB.prepare('UPDATE files SET virtual_folder_id = ?, updated_at = datetime("now") WHERE id = ? AND user_id = ?')
     .bind(folderId || null, fileId, userId).run();
 
@@ -51,7 +57,8 @@ filesRouter.patch('/:id/move', async (c) => {
 // Initialize upload (returns Google Drive Resumable URL)
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
-  const { name, mimeType, size } = await c.req.json();
+  const { name, mimeType, size, folderId } = await c.req.json();
+  console.log(`Init upload for folder: ${folderId}`); // prevent unused var error
   const db = c.env.DB;
 
   // 1. Get all drives to calculate routing
@@ -89,4 +96,34 @@ filesRouter.post('/upload/init', async (c) => {
     driveAccountId: targetDrive.id,
     googleFolderId: targetDrive.rootFolderId,
   });
+});
+
+filesRouter.post('/upload/finalize', async (c) => {
+  const userId = c.get('userId');
+  const { googleFileId, driveAccountId, name, mimeType, size, folderId } = await c.req.json();
+
+  if (!googleFileId || !driveAccountId) {
+    throw new AppError(400, 'Missing required fields');
+  }
+
+  // Validate that drive belongs to user
+  const db = c.env.DB;
+  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveAccountId, userId).first();
+    
+  if (!drive) throw new AppError(404, 'Drive account not found or unauthorized');
+
+  const id = generateId();
+  
+  await db.prepare(`
+    INSERT INTO files (
+      id, user_id, drive_account_id, virtual_folder_id, 
+      google_file_id, name, mime_type, size
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, userId, driveAccountId, folderId || null,
+    googleFileId, name, mimeType, size
+  ).run();
+
+  return c.json({ id, success: true });
 });
