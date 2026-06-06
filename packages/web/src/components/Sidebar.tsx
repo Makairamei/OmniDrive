@@ -60,7 +60,7 @@ export function Sidebar() {
               <span className="truncate" style={{ fontSize: 'var(--font-size-sm)' }}>{drive.email}</span>
             </div>
           ))}
-          <a href="/api/drives/connect" className="sidebar-link add-drive">
+          <a href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`} className="sidebar-link add-drive">
             <Plus size={16} />
             <span>Add Drive</span>
           </a>

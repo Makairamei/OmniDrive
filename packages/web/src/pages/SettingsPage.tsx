@@ -69,7 +69,7 @@ export function SettingsPage() {
 
       {/* Add Drive Buttons */}
       <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <a href="/api/drives/connect" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+        <a href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`} className="btn btn-primary" style={{ textDecoration: 'none' }}>
           <Plus size={18} /> Add Google Drive
         </a>
         <button className="btn btn-secondary" onClick={() => setShowSaForm(!showSaForm)}>
