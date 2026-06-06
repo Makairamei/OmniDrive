@@ -23,15 +23,17 @@ function isGoogleNative(mimeType: string | null): boolean {
 interface FileCardProps {
   file: FileEntry;
   driveColor: string;
+  driveEmail?: string;
   onDelete?: (id: string) => void;
   onRename?: (id: string, name: string) => void;
   onPreview?: (file: FileEntry) => void;
 }
 
-export function FileCard({ file, driveColor, onDelete, onRename, onPreview }: FileCardProps) {
+export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onPreview }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const badge = getGoogleNativeBadge(file.mimeType);
   const native = isGoogleNative(file.mimeType);
+  const initial = driveEmail ? driveEmail.charAt(0).toUpperCase() : '?';
 
   const handleClick = () => {
     if (native && file.webViewLink) {
@@ -42,7 +44,12 @@ export function FileCard({ file, driveColor, onDelete, onRename, onPreview }: Fi
   };
 
   return (
-    <div className="file-card" onClick={handleClick}>
+    <div className="file-card" onClick={handleClick} style={{ position: 'relative' }}>
+      {driveEmail && (
+        <div className="account-badge" style={{ backgroundColor: `${driveColor}40`, color: driveColor, borderColor: `${driveColor}60` }} title={driveEmail}>
+          {initial}
+        </div>
+      )}
       <div className="file-card-icon">{getFileIcon(file.mimeType)}</div>
       <div className="file-card-info">
         <div className="file-card-name truncate">
@@ -162,4 +169,24 @@ const fileCardStyles = `
 
   .file-card-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
   .file-card-menu-item.danger:hover { background: var(--accent-danger-subtle); color: var(--accent-danger); }
+
+  .account-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid;
+    z-index: 2;
+    transition: opacity 0.2s;
+    cursor: help;
+  }
 `;
