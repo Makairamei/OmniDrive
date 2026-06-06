@@ -93,7 +93,7 @@ authRouter.get('/callback', async (c) => {
     maxAge: 60 * 60 * 24 * 7,
   });
 
-  return c.redirect(`${env.FRONTEND_URL}/dashboard`);
+  return c.redirect(`${env.FRONTEND_URL}/`);
 });
 
 // Protected routes below
