@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useUploadStore } from '../stores/uploadStore';
 import { useDriveStore } from '../stores/driveStore';
+import { Breadcrumb } from '../components/Breadcrumb';
 import { FileCard } from '../components/FileCard';
 import { DriveFolderCard } from '../components/DriveFolderCard';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { Upload, ArrowLeft, FolderPlus, X } from 'lucide-react';
+import { Upload, FolderPlus, X } from 'lucide-react';
 import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 import { useMergedDrive } from '../hooks/useMergedDrive';
@@ -27,7 +28,7 @@ export function FilesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
 
-  const { subfolders, files, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
+  const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
   const handleDeleteFile = async (id: string) => {
     if (confirm('Delete this file permanently from Google Drive?')) {
@@ -70,21 +71,12 @@ export function FilesPage() {
     return { drive: drives[index], index };
   };
 
-  const isRoot = folderId === 'root';
-
   return (
     <DropZone>
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-lg)', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          {!isRoot && (
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginRight: 'var(--space-xs)' }}>
-              <ArrowLeft size={16} /> Back
-            </button>
-          )}
-          <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)' }}>
-            {isRoot ? 'All Files' : 'Folder'}
-          </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+          <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
