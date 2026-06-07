@@ -1,12 +1,47 @@
-import { Hono } from 'hono';
+import { Context, Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
+import { sign, verify } from 'hono/jwt';
 
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
-import { mapSharedLinkRow } from '../types';
+import { mapSharedLinkRow, type SharedLink } from '../types';
 import { generateId } from '../lib/id';
 
 export const sharedRouter = new Hono<AppContext>({ strict: false });
+
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+async function validateSharedLink(c: Context<AppContext>, link: SharedLink): Promise<{ ok: boolean; status?: number; error?: string; requiresPassword?: boolean }> {
+  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+    return { ok: false, status: 410, error: 'Link expired' };
+  }
+  
+  const requiresPassword = !!link.passwordHash;
+  if (!requiresPassword) {
+    return { ok: true };
+  }
+  
+  const sessionCookie = getCookie(c, `shared_session_${link.id}`);
+  if (sessionCookie) {
+    try {
+      const payload = await verify(sessionCookie, c.env.GOOGLE_CLIENT_SECRET, 'HS256');
+      if (payload.id === link.id) {
+        return { ok: true };
+      }
+    } catch (e) {
+      // Invalid token
+    }
+  }
+  
+  return { ok: false, status: 401, error: 'Password required', requiresPassword: true };
+}
 
 // ─── Management Endpoints (Require Auth) ───
 
@@ -119,21 +154,9 @@ sharedRouter.get('/:id/meta', async (c) => {
   
   const link = mapSharedLinkRow(row as Record<string, unknown>);
   
-  if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-    return c.json({ error: 'Link expired' }, 410);
-  }
-  
-  const requiresPassword = !!link.passwordHash;
-  const sessionCookie = getCookie(c, `shared_session_${id}`);
-  
-  let isAuthenticated = !requiresPassword;
-  if (requiresPassword && sessionCookie && link.passwordHash) {
-    const [, storedHashHex] = link.passwordHash.split(':');
-    isAuthenticated = sessionCookie === storedHashHex;
-  }
-  
-  if (!isAuthenticated) {
-    return c.json({ error: 'Password required', requiresPassword: true }, 401);
+  const validation = await validateSharedLink(c, link);
+  if (!validation.ok) {
+    return c.json({ error: validation.error, requiresPassword: validation.requiresPassword }, validation.status as any);
   }
   
   if (link.targetType === 'file') {
@@ -168,7 +191,9 @@ sharedRouter.post('/:id/verify', async (c) => {
   
   const [saltHex, storedHashHex] = link.passwordHash.split(':');
   
-  const salt = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+  const saltMatch = saltHex.match(/.{1,2}/g);
+  if (!saltMatch) return c.json({ error: 'Invalid salt format' }, 500);
+  const salt = new Uint8Array(saltMatch.map(byte => parseInt(byte, 16)));
   
   const encoder = new TextEncoder();
   const passwordData = encoder.encode(password);
@@ -195,11 +220,12 @@ sharedRouter.post('/:id/verify', async (c) => {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   
-  if (storedHashHex !== hashHex) {
+  if (!timingSafeEqualStr(storedHashHex, hashHex)) {
     return c.json({ error: 'Invalid password' }, 401);
   }
   
-  setCookie(c, `shared_session_${id}`, hashHex, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
+  const token = await sign({ id }, c.env.GOOGLE_CLIENT_SECRET, 'HS256');
+  setCookie(c, `shared_session_${id}`, token, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
   return c.json({ success: true });
 });
 
@@ -211,16 +237,10 @@ sharedRouter.get('/:id/download', async (c) => {
   if (!row) return c.text('Not found', 404);
   const link = mapSharedLinkRow(row as Record<string, unknown>);
   
-  const requiresPassword = !!link.passwordHash;
-  const sessionCookie = getCookie(c, `shared_session_${id}`);
-  
-  let isAuthenticated = !requiresPassword;
-  if (requiresPassword && sessionCookie && link.passwordHash) {
-    const [, storedHashHex] = link.passwordHash.split(':');
-    isAuthenticated = sessionCookie === storedHashHex;
+  const validation = await validateSharedLink(c, link);
+  if (!validation.ok) {
+    return c.text(validation.error || 'Unauthorized', validation.status as any);
   }
-  
-  if (!isAuthenticated) return c.text('Unauthorized', 401);
   
   // Note: Streaming logic via GoogleDriveService will be added here
   return c.text('Download ready (stream to be connected to Google API)', 200);
