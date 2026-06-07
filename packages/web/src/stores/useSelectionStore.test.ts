@@ -13,4 +13,11 @@ describe('useSelectionStore', () => {
     useSelectionStore.getState().removeSelection('file-1');
     expect(useSelectionStore.getState().selectedIds).not.toContain('file-1');
   });
+
+  it('clears selection', () => {
+    useSelectionStore.getState().addSelection('file-1');
+    useSelectionStore.getState().addSelection('file-2');
+    useSelectionStore.getState().clearSelection();
+    expect(useSelectionStore.getState().selectedIds).toEqual([]);
+  });
 });
