@@ -105,34 +105,47 @@ export interface SharedLink {
   createdAt: string;
 }
 
-export const createSharedLink = async (targetType: string, targetId: string, password?: string, expiresAt?: string) => {
-  return request<any>('/api/shared', {
+export interface SharedMetaResponse {
+  type?: 'file' | 'folder';
+  target?: import('../types').FileEntry;
+  targetId?: string;
+  requiresPassword?: boolean;
+}
+
+export const createSharedLink = async (targetType: 'file' | 'folder', targetId: string, password?: string, expiresAt?: string) => {
+  return request<{ id: string; url: string }>('/api/shared', {
     method: 'POST',
     body: JSON.stringify({ targetType, targetId, password, expiresAt }),
   });
 };
 
 export const getSharedLinks = async () => {
-  return request<SharedLink[]>('/api/shared');
+  return request<{ links: SharedLink[] }>('/api/shared');
 };
 
 export const deleteSharedLink = async (id: string) => {
-  return request<any>(`/api/shared/${id}`, { method: 'DELETE' });
+  return request<{ success: boolean }>(`/api/shared/${id}`, { method: 'DELETE' });
 };
 
 export const getSharedMeta = async (id: string) => {
-  const res = await fetch(`${API_BASE}/api/shared/${id}/meta`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' }
-  });
-  return res;
+  try {
+    return await request<SharedMetaResponse>(`/api/shared/${id}/meta`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return { requiresPassword: true };
+    }
+    throw error;
+  }
 };
 
 export const verifySharedPassword = async (id: string, password: string) => {
-  return request<any>(`/api/shared/${id}/verify`, {
+  return request<{ success: boolean }>(`/api/shared/${id}/verify`, {
     method: 'POST',
     body: JSON.stringify({ password }),
-  }).catch(() => {
-    throw new Error('Invalid password');
+  }).catch((error) => {
+    if (error instanceof ApiError && error.status === 401) {
+      throw new Error('Invalid password');
+    }
+    throw error;
   });
 };
