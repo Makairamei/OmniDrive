@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth';
 import { drivesRouter } from './routes/drives';
 import { foldersRouter } from './routes/folders';
 import { filesRouter } from './routes/files';
+import { sharedRouter } from './routes/shared';
 
 const app = new Hono<AppContext>({ strict: false });
 
@@ -19,6 +20,7 @@ app.route('/api/auth', authRouter);
 app.route('/api/drives', drivesRouter);
 app.route('/api/folders', foldersRouter);
 app.route('/api/files', filesRouter);
+app.route('/api/shared', sharedRouter);
 
 // Health check (public)
 app.get('/api/health', (c) => {
