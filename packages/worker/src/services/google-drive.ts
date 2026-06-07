@@ -269,6 +269,78 @@ export class GoogleDriveService {
     }
   }
 
+  // ─── Move To Another Drive Operations ───
+
+  async shareFile(driveAccountId: string, fileId: string, emailAddress: string): Promise<string> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'writer',
+        type: 'user',
+        emailAddress,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to share file: ${await response.text()}`);
+    }
+
+    const data: { id: string } = await response.json();
+    return data.id;
+  }
+
+  async revokeShare(driveAccountId: string, fileId: string, permissionId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions/${permissionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to revoke share: ${await response.text()}`);
+    }
+  }
+
+  async copyFile(driveAccountId: string, fileId: string): Promise<GDriveFile> {
+    const token = await this.getValidToken(driveAccountId);
+    const fields = 'id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime';
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}/copy?fields=${fields}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to copy file: ${await response.text()}`);
+    }
+
+    return response.json();
+  }
+
+  async trashFile(driveAccountId: string, fileId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to trash file: ${await response.text()}`);
+    }
+  }
+
   // ─── Changes API (for sync) ───
 
   async getStartPageToken(driveAccountId: string): Promise<string> {
