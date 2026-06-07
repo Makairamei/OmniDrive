@@ -1,0 +1,40 @@
+# Omnidrive API — Cloudflare Worker Configuration
+# Copy this file to wrangler.toml and fill in your values:
+#   cp wrangler.example.toml wrangler.toml
+
+name = "omnidrive-api"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[triggers]
+crons = ["*/30 * * * *"]
+
+# D1 Database — create with: npx wrangler d1 create omnidrive
+[[d1_databases]]
+binding = "DB"
+database_name = "omnidrive"
+database_id = "<your-d1-database-id>"
+
+# KV Namespace — create with: npx wrangler kv namespace create KV
+[[kv_namespaces]]
+binding = "KV"
+id = "<your-kv-namespace-id>"
+
+[vars]
+FRONTEND_URL = "http://localhost:5173"
+WORKER_URL = "http://localhost:8787"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
