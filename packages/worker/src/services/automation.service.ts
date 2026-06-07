@@ -1,11 +1,16 @@
 import type { RuleCondition } from '../types/automation';
 
-export function evaluateCondition(file: any, conditions: RuleCondition[]): boolean {
+export interface AutomationFile {
+  [key: string]: unknown;
+}
+
+export function evaluateCondition(file: AutomationFile, conditions: RuleCondition[]): boolean {
   if (!conditions || conditions.length === 0) return true;
   
   return conditions.every(cond => {
-    const value = file[cond.field]?.toLowerCase() || '';
-    const target = cond.value.toLowerCase();
+    const rawFieldValue = file[cond.field];
+    const value = rawFieldValue != null ? String(rawFieldValue).toLowerCase() : '';
+    const target = cond.value != null ? String(cond.value).toLowerCase() : '';
     
     switch (cond.operator) {
       case 'endswith': return value.endsWith(target);
