@@ -256,15 +256,23 @@ sharedRouter.get('/:id/download', async (c) => {
       c.env.GOOGLE_CLIENT_SECRET
     );
 
-    const stream = await driveService.downloadFile(
-      file.drive_account_id as string,
-      file.google_file_id as string
-    );
+    let stream: ReadableStream<Uint8Array>;
+    try {
+      stream = await driveService.downloadFile(
+        file.drive_account_id as string,
+        file.google_file_id as string
+      );
+    } catch (e) {
+      return c.text('Failed to download file', 502);
+    }
     
     c.header('Content-Type', (file.mime_type as string) || 'application/octet-stream');
     c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name as string)}`);
+    if (file.size) {
+      c.header('Content-Length', String(file.size));
+    }
     
-    return c.body(stream as any);
+    return c.body(stream as ReadableStream<Uint8Array>);
   } else {
     return c.text('Folder download not supported yet', 400);
   }

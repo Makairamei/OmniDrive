@@ -222,7 +222,7 @@ export class GoogleDriveService {
     return response.json();
   }
 
-  async downloadFile(driveAccountId: string, googleFileId: string): Promise<ReadableStream> {
+  async downloadFile(driveAccountId: string, googleFileId: string): Promise<ReadableStream<Uint8Array>> {
     const token = await this.getValidToken(driveAccountId);
 
     const response = await fetch(`${DRIVE_API}/files/${googleFileId}?alt=media`, {
@@ -233,7 +233,10 @@ export class GoogleDriveService {
       throw new Error(`Failed to download file: ${await response.text()}`);
     }
 
-    return response.body as ReadableStream;
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+    return response.body as ReadableStream<Uint8Array>;
   }
 
   async deleteFile(driveAccountId: string, googleFileId: string): Promise<void> {
