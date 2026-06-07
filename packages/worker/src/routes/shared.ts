@@ -136,6 +136,43 @@ sharedRouter.get('/', authGuard, async (c) => {
   return c.json({ links: results.map(mapSharedLinkRow) });
 });
 
+sharedRouter.put('/:id', authGuard, async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  
+  let body;
+  try {
+    body = await c.req.json();
+  } catch (e) {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { expiresAt, allowDownloads, allowUploads, maxDownloads, requireEmail, webhookUrl } = body;
+  
+  const db = c.env.DB;
+  
+  const result = await db.prepare(
+    'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ? WHERE id = ? AND user_id = ?'
+  )
+  .bind(
+    expiresAt || null,
+    allowDownloads ? 1 : 0,
+    allowUploads ? 1 : 0,
+    maxDownloads || null,
+    requireEmail ? 1 : 0,
+    webhookUrl || null,
+    id,
+    userId
+  )
+  .run();
+
+  if (result.meta.changes === 0) {
+    return c.json({ error: 'Link not found or no changes made' }, 404);
+  }
+
+  return c.json({ success: true });
+});
+
 sharedRouter.delete('/:id', authGuard, async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
