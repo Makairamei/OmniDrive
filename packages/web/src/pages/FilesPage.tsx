@@ -3,14 +3,12 @@ import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useUploadStore } from '../stores/uploadStore';
 import { useDriveStore } from '../stores/driveStore';
 import { Breadcrumb } from '../components/Breadcrumb';
-import { FileCard } from '../components/FileCard';
-import { DriveFolderCard } from '../components/DriveFolderCard';
+import { FileGrid } from '../components/files/FileGrid';
 import { DropZone } from '../components/DropZone';
 import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { Upload, FolderPlus, X } from 'lucide-react';
-import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
 import { useMergedDrive } from '../hooks/useMergedDrive';
@@ -79,118 +77,86 @@ export function FilesPage() {
     return { drive: drives[index], index };
   };
 
+  const filteredSubfolders = subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <DropZone>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-lg)', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-          <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="Filter files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: 200, paddingRight: 28 }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)' }}
-                onClick={() => setSearchQuery('')}
-              >
-                <X size={14} />
-              </button>
-            )}
+      <div className="flex flex-col h-full w-full">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4 px-4 pt-4">
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+            <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={handleCreateFolder}>
-            <FolderPlus size={16} /> New Folder
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
-            <Upload size={16} /> Upload
-          </button>
-        </div>
-      </div>
 
-      {isLoading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-4xl)' }}>
-          <div className="spinner" style={{ marginBottom: 'var(--space-md)' }} />
-          <p style={{ color: 'var(--text-tertiary)' }}>Loading folder contents...</p>
-        </div>
-      ) : drives.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-tertiary)' }}>
-          <p style={{ marginBottom: 'var(--space-sm)' }}>No drives connected yet</p>
-          <Link to="/settings" className="btn btn-primary">
-            Connect Google Drive
-          </Link>
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 'var(--space-sm)' }}>
-          {subfolders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((folder) => {
-            const { drive, index } = getDriveInfo(folder.driveAccountId);
-            return (
-              <DriveFolderCard
-                key={folder.googleFolderId}
-                folder={folder}
-                driveColor={getDriveColor(index)}
-                driveEmail={drive?.email || ''}
-                hasError={drive ? errorDrives.has(drive.id) : false}
-                onClick={() => {
-                  const targetDriveId = folder.driveAccountId;
-                  if (!targetDriveId) return;
-                  navigate(`/files/${folder.googleFolderId}?driveId=${targetDriveId}`);
-                }}
-                onShare={folder.id ? () => setShareTarget({ id: folder.id!, type: 'folder' }) : undefined}
-                isShared={folder.id ? isTargetShared(folder.id, 'folder') : false}
+          <div className="flex gap-2 items-center">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Filter files..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 pl-3 pr-8 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            );
-          })}
-
-          {subfolders.length > 0 && files.length > 0 && (
-            <div style={{ borderTop: '1px solid var(--border-subtle)', margin: 'var(--space-xs) var(--space-md)' }} />
-          )}
-
-          {files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((file) => {
-            const { drive, index } = getDriveInfo(file.driveAccountId);
-            return (
-              <FileCard
-                key={file.id}
-                file={file}
-                driveColor={getDriveColor(index)}
-                driveEmail={drive?.email || ''}
-                onDelete={handleDeleteFile}
-                onRename={handleRenameFile}
-                onPreview={setPreviewFile}
-                onShare={(f) => setShareTarget({ id: f.id, type: 'file' })}
-                isShared={isTargetShared(file.id, 'file')}
-              />
-            );
-          })}
-
-          {subfolders.length === 0 && files.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-tertiary)' }}>
-              <p style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)' }}>📂</p>
-              <p>This folder is empty</p>
-              <p style={{ fontSize: 'var(--font-size-sm)' }}>Drag &amp; drop files here or click Upload</p>
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
-          )}
+            <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleCreateFolder}>
+              <FolderPlus size={16} /> New Folder
+            </button>
+            <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
+              <Upload size={16} /> Upload
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Modals */}
-      {showModal && <UploadModal folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />}
-      {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
-      {shareTarget && (
-        <ShareModal
-          targetType={shareTarget.type}
-          targetId={shareTarget.id}
-          onClose={() => setShareTarget(null)}
-        />
-      )}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center p-16">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4" />
+            <p className="text-gray-500">Loading folder contents...</p>
+          </div>
+        ) : drives.length === 0 ? (
+          <div className="text-center p-12 text-gray-500 border rounded-lg bg-white m-4">
+            <p className="mb-4">No drives connected yet</p>
+            <Link to="/settings" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
+              Connect Google Drive
+            </Link>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200 m-4 shadow-sm">
+            <FileGrid
+              files={filteredFiles}
+              subfolders={filteredSubfolders}
+              getDriveInfo={getDriveInfo}
+              onNavigateFolder={(id, driveId) => navigate(`/files/${id}?driveId=${driveId}`)}
+              onPreviewFile={setPreviewFile}
+              onShare={(id, type) => setShareTarget({ id, type })}
+              onRenameFile={handleRenameFile}
+              onDeleteFile={handleDeleteFile}
+              isTargetShared={isTargetShared}
+              errorDrives={errorDrives}
+            />
+          </div>
+        )}
+
+        {/* Modals */}
+        {showModal && <UploadModal folderId={folderId} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); refresh(); }} />}
+        {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+        {shareTarget && (
+          <ShareModal
+            targetType={shareTarget.type}
+            targetId={shareTarget.id}
+            onClose={() => setShareTarget(null)}
+          />
+        )}
+      </div>
     </DropZone>
   );
 }
