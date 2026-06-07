@@ -75,6 +75,16 @@ export interface DriveFolder {
   createdAt: string;
 }
 
+export interface SharedLink {
+  id: string;
+  userId: string;
+  targetType: 'file' | 'folder';
+  targetId: string;
+  passwordHash: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 // ─── KV Types ───
 
 export interface OAuthTokens {
@@ -196,6 +206,18 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
     name: row.name as string,
     isSynced: row.is_synced === 1,
     syncedAt: (row.synced_at as string) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    targetType: row.target_type as 'file' | 'folder',
+    targetId: row.target_id as string,
+    passwordHash: (row.password_hash as string) ?? null,
+    expiresAt: (row.expires_at as string) ?? null,
     createdAt: row.created_at as string,
   };
 }

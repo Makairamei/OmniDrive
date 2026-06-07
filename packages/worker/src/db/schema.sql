@@ -92,3 +92,12 @@ CREATE INDEX IF NOT EXISTS idx_folders_user_parent ON virtual_folders(user_id, p
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_drive_folders_parent ON drive_folders(drive_account_id, google_parent_id);
 
+CREATE TABLE IF NOT EXISTS shared_links (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_type     TEXT NOT NULL,
+    target_id       TEXT NOT NULL,
+    password_hash   TEXT,
+    expires_at      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
