@@ -10,6 +10,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
   
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<import('../types').BreadcrumbItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorDrives, setErrorDrives] = useState<Set<string>>(new Set());
 
@@ -23,6 +24,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
     setIsLoading(true);
     setSubfolders([]);
     setFiles([]);
+    setBreadcrumb([]);
     setErrorDrives(new Set());
 
     try {
@@ -45,6 +47,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         
         setSubfolders(mergedFolders);
         setFiles(mergedFiles);
+        setBreadcrumb([{ id: 'root', name: 'All Files' }]);
       } else if (!driveIdParam) {
         addToast('error', 'Missing drive information for folder');
         setIsLoading(false);
@@ -55,6 +58,7 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
         if (abortSignal?.aborted) return;
         setSubfolders(data.subfolders);
         setFiles(data.files);
+        setBreadcrumb(data.breadcrumb || [{ id: 'root', name: 'All Files' }]);
       }
     } catch (err) {
       if (abortSignal?.aborted) return;
@@ -74,5 +78,5 @@ export function useMergedDrive(folderId: string, driveIdParam: string | null) {
     };
   }, [fetchContents]);
 
-  return { subfolders, files, isLoading, errorDrives, refresh: () => fetchContents() };
+  return { subfolders, files, breadcrumb, isLoading, errorDrives, refresh: () => fetchContents() };
 }

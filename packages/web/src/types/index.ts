@@ -61,8 +61,9 @@ export interface FileEntry {
   googleModifiedAt: string | null;
   syncedAt: string;
   createdAt: string;
-  driveEmail: string;
+  driveEmail?: string;  // optional — not present in folder-browse responses
 }
+
 
 export interface BreadcrumbItem {
   id: string | null;
@@ -90,6 +91,7 @@ export interface DriveFolderContents {
   folder: DriveFolder | null;
   subfolders: DriveFolder[];
   files: FileEntry[];
+  breadcrumb: BreadcrumbItem[];
 }
 
 export interface UploadInitResponse {
