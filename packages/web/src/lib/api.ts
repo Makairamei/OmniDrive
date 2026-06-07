@@ -88,6 +88,11 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   deleteFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}`, { method: 'DELETE' }),
+  moveFileToDrive: (id: string, targetDriveId: string) =>
+    request<{ file: import('../types').FileEntry }>(`/api/files/${id}/move-drive`, {
+      method: 'POST',
+      body: JSON.stringify({ targetDriveId }),
+    }),
 
   // Recent files (uses root contents, sorted by date)
   getRecentFiles: () =>
