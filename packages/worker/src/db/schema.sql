@@ -99,6 +99,21 @@ CREATE TABLE IF NOT EXISTS shared_links (
     target_id       TEXT NOT NULL,
     password_hash   TEXT,
     expires_at      TEXT,
+    allow_downloads INTEGER NOT NULL DEFAULT 1,
+    allow_uploads   INTEGER NOT NULL DEFAULT 0,
+    max_downloads   INTEGER,
+    require_email   INTEGER NOT NULL DEFAULT 0,
+    webhook_url     TEXT,
+    view_count      INTEGER NOT NULL DEFAULT 0,
+    download_count  INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS shared_link_logs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    shared_link_id  TEXT NOT NULL REFERENCES shared_links(id) ON DELETE CASCADE,
+    action          TEXT NOT NULL,
+    visitor_email   TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
