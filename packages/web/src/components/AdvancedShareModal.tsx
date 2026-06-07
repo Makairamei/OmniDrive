@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { createSharedLink, updateSharedLink } from '../lib/api';
 
-export function AdvancedShareModal({ targetId, targetType, onClose, existingConfig }: any) {
+interface AdvancedShareModalProps {
+  targetId: string;
+  targetType: 'file' | 'folder';
+  onClose: () => void;
+  existingConfig?: any;
+}
+
+export function AdvancedShareModal({ targetId, targetType, onClose, existingConfig }: AdvancedShareModalProps) {
   const [config, setConfig] = useState(existingConfig || {
     allowDownloads: true,
     allowUploads: false,
@@ -10,9 +17,10 @@ export function AdvancedShareModal({ targetId, targetType, onClose, existingConf
   });
 
   const handleSave = async () => {
+    const hasMaxDownloads = config.maxDownloads !== '' && config.maxDownloads !== null && config.maxDownloads !== undefined;
     const payload = {
       ...config,
-      maxDownloads: config.maxDownloads ? parseInt(config.maxDownloads) : null
+      maxDownloads: hasMaxDownloads ? parseInt(config.maxDownloads.toString(), 10) : null
     };
     if (existingConfig) {
       await updateSharedLink(existingConfig.id, payload);
