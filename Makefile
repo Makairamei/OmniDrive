@@ -17,7 +17,7 @@ deploy-worker:
 deploy-web:
 	@echo "=> Building & Deploying Web (Frontend)..."
 	@echo "Pastikan packages/web/.env.production sudah berisi VITE_API_URL yang benar."
-	cd packages/web && npx vite build && npx wrangler pages deploy dist/
+	cd packages/web && npx vite build && npx wrangler pages deploy dist/ --project-name omnidrive --branch main
 
 # Deploy Keduanya
 deploy-all: deploy-worker deploy-web
