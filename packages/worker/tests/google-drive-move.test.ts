@@ -29,7 +29,7 @@ describe('GoogleDriveService Move Operations', () => {
       
       expect(permId).toBe('permission-id');
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://www.googleapis.com/drive/v3/files/fileId/permissions',
+        'https://www.googleapis.com/drive/v3/files/fileId/permissions?sendNotificationEmail=false',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({

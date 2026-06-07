@@ -23,6 +23,13 @@ export interface GDriveFolder {
   parents?: string[];
 }
 
+export class GoogleDriveError extends Error {
+  constructor(public status: number, message: string, public data?: any) {
+    super(message);
+    this.name = 'GoogleDriveError';
+  }
+}
+
 export class GoogleDriveService {
   constructor(
     private kv: KVNamespace,
@@ -271,24 +278,23 @@ export class GoogleDriveService {
 
   // ─── Move To Another Drive Operations ───
 
-  async shareFile(driveAccountId: string, fileId: string, emailAddress: string): Promise<string> {
+  async shareFile(driveAccountId: string, fileId: string, emailAddress: string, role = 'writer', type = 'user'): Promise<string> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions`, {
+    const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        role: 'writer',
-        type: 'user',
-        emailAddress,
-      }),
+      body: JSON.stringify({ role, type, emailAddress }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to share file: ${await response.text()}`);
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to share file: ${errorText}`, errorData);
     }
 
     const data: { id: string } = await response.json();
@@ -304,7 +310,10 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to revoke share: ${await response.text()}`);
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to revoke share: ${errorText}`, errorData);
     }
   }
 
@@ -318,7 +327,10 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to copy file: ${await response.text()}`);
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to copy file: ${errorText}`, errorData);
     }
 
     return response.json();
@@ -337,7 +349,10 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to trash file: ${await response.text()}`);
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to trash file: ${errorText}`, errorData);
     }
   }
 
