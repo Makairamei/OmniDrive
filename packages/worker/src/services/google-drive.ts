@@ -356,6 +356,26 @@ export class GoogleDriveService {
     }
   }
 
+  async untrashFile(driveAccountId: string, fileId: string): Promise<void> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${fileId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: false }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch {}
+      throw new GoogleDriveError(response.status, `Failed to untrash file: ${errorText}`, errorData);
+    }
+  }
+
   // ─── Changes API (for sync) ───
 
   async getStartPageToken(driveAccountId: string): Promise<string> {
