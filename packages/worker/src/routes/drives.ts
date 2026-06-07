@@ -8,7 +8,7 @@ import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
 
-export async function buildDriveBreadcrumb(db: any, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
+export async function buildDriveBreadcrumb(db: D1Database, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
   const path: BreadcrumbItem[] = [];
   
   if (googleFolderId && googleFolderId !== 'root') {
@@ -25,9 +25,9 @@ export async function buildDriveBreadcrumb(db: any, driveId: string, googleFolde
       )
       SELECT id, name FROM breadcrumb_path ORDER BY lvl DESC
     `;
-    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all();
+    const { results } = await db.prepare(query).bind(driveId, googleFolderId, driveId).all<{ id: string, name: string }>();
     for (const row of results) {
-      path.push({ id: row.id as string, name: row.name as string });
+      path.push({ id: row.id, name: row.name });
     }
   }
   
