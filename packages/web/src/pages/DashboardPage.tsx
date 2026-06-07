@@ -5,6 +5,7 @@ import { FileCard } from '../components/FileCard';
 import { ShareModal } from '../components/ShareModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
+import { useSharedStore } from '../stores/sharedStore';
 import { HardDrive, RefreshCw, TrendingUp } from 'lucide-react';
 import type { FileEntry } from '../types';
 
@@ -12,11 +13,14 @@ export function DashboardPage() {
   const { drives, aggregate, isLoading, fetchDrives } = useDriveStore();
   const [recentFiles, setRecentFiles] = useState<FileEntry[]>([]);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
+  
+  const { fetchSharedLinks, isTargetShared } = useSharedStore();
 
   useEffect(() => {
     fetchDrives();
+    fetchSharedLinks();
     api.getRecentFiles().then((data) => setRecentFiles(data.files.slice(0, 10))).catch(() => {});
-  }, [fetchDrives]);
+  }, [fetchDrives, fetchSharedLinks]);
 
   return (
     <div>
@@ -70,6 +74,7 @@ export function DashboardPage() {
                   file={file}
                   driveColor={getDriveColor(driveIndex >= 0 ? driveIndex : 0)}
                   onShare={(f) => setShareTarget({ id: f.id, type: 'file' })}
+                  isShared={isTargetShared(file.id, 'file')}
                 />
               );
             })}

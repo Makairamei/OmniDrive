@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Copy, Check, Share2, Calendar, Lock } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
+import { useSharedStore } from '../stores/sharedStore';
 
 interface ShareModalProps {
   targetType: 'file' | 'folder';
@@ -32,6 +33,7 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
     try {
       const resp = await createSharedLink(targetType, targetId, password || undefined, expiresAt || undefined);
       setSharedUrl(resp.url);
+      useSharedStore.getState().fetchSharedLinks();
     } catch (err: any) {
       setError(err.message || 'Failed to create shared link');
     } finally {

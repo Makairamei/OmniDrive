@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useUploadStore } from '../stores/uploadStore';
 import { useDriveStore } from '../stores/driveStore';
@@ -12,6 +12,7 @@ import { ShareModal } from '../components/ShareModal';
 import { Upload, FolderPlus, X } from 'lucide-react';
 import { getDriveColor } from '../lib/utils';
 import { useToastStore } from '../stores/toastStore';
+import { useSharedStore } from '../stores/sharedStore';
 import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
 import type { FileEntry } from '../types';
@@ -28,6 +29,12 @@ export function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { fetchSharedLinks, isTargetShared } = useSharedStore();
+
+  useEffect(() => {
+    fetchSharedLinks();
+  }, [fetchSharedLinks]);
 
   const { subfolders, files, breadcrumb, isLoading, errorDrives, refresh } = useMergedDrive(folderId, driveIdParam);
 
@@ -138,6 +145,7 @@ export function FilesPage() {
                   navigate(`/files/${folder.googleFolderId}?driveId=${targetDriveId}`);
                 }}
                 onShare={folder.id ? () => setShareTarget({ id: folder.id!, type: 'folder' }) : undefined}
+                isShared={folder.id ? isTargetShared(folder.id, 'folder') : false}
               />
             );
           })}
@@ -158,6 +166,7 @@ export function FilesPage() {
                 onRename={handleRenameFile}
                 onPreview={setPreviewFile}
                 onShare={(f) => setShareTarget({ id: f.id, type: 'file' })}
+                isShared={isTargetShared(file.id, 'file')}
               />
             );
           })}

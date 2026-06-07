@@ -28,9 +28,10 @@ interface FileCardProps {
   onRename?: (id: string, name: string) => void;
   onPreview?: (file: FileEntry) => void;
   onShare?: (file: FileEntry) => void;
+  isShared?: boolean;
 }
 
-export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onPreview, onShare }: FileCardProps) {
+export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onPreview, onShare, isShared }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const badge = getGoogleNativeBadge(file.mimeType);
   const native = isGoogleNative(file.mimeType);
@@ -55,6 +56,7 @@ export function FileCard({ file, driveColor, driveEmail, onDelete, onRename, onP
       <div className="file-card-info">
         <div className="file-card-name truncate">
           {file.name}
+          {isShared && <span className="file-badge" style={{ background: 'var(--accent-primary-subtle)', color: 'var(--accent-primary)', marginLeft: 4 }} title="Shared via Public Link"><Share2 size={10} style={{ display: 'inline', marginRight: 2, marginBottom: -1 }} /> Shared</span>}
           {badge && <span className="file-badge">{badge}</span>}
         </div>
         <div className="file-card-meta">

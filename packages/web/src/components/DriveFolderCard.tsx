@@ -9,9 +9,10 @@ interface DriveFolderCardProps {
   isSyncing?: boolean;
   onClick: () => void;
   onShare?: () => void;
+  isShared?: boolean;
 }
 
-export function DriveFolderCard({ folder, driveColor, driveEmail, hasError, isSyncing, onClick, onShare }: DriveFolderCardProps) {
+export function DriveFolderCard({ folder, driveColor, driveEmail, hasError, isSyncing, onClick, onShare, isShared }: DriveFolderCardProps) {
   const initial = driveEmail ? driveEmail.charAt(0).toUpperCase() : '?';
 
   return (
@@ -34,7 +35,10 @@ export function DriveFolderCard({ folder, driveColor, driveEmail, hasError, isSy
           <Folder size={20} />
         )}
       </span>
-      <span className="folder-name truncate">{folder.name}</span>
+      <span className="folder-name truncate">
+        {folder.name}
+        {isShared && <span className="file-badge" style={{ background: 'var(--accent-primary-subtle)', color: 'var(--accent-primary)', marginLeft: 8, padding: '2px 6px', fontSize: 10, borderRadius: 10 }} title="Shared via Public Link"><Share2 size={10} style={{ display: 'inline', marginRight: 2, marginBottom: -1 }} /> Shared</span>}
+      </span>
       
       {!folder.isSynced && !hasError && !isSyncing && (
         <span className="unsynced-dot" title="Not yet loaded" />
