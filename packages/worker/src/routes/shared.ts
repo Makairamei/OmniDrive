@@ -6,6 +6,7 @@ import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { mapSharedLinkRow, type SharedLink } from '../types';
 import { generateId } from '../lib/id';
+import { GoogleDriveService } from '../services/google-drive';
 
 export const sharedRouter = new Hono<AppContext>({ strict: false });
 
@@ -242,6 +243,29 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text(validation.error || 'Unauthorized', validation.status as any);
   }
   
-  // Note: Streaming logic via GoogleDriveService will be added here
-  return c.text('Download ready (stream to be connected to Google API)', 200);
+  if (link.targetType === 'file') {
+    const file = await db.prepare('SELECT * FROM files WHERE id = ?').bind(link.targetId).first();
+    if (!file) return c.text('File not found', 404);
+
+    const driveAccount = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(file.drive_account_id).first();
+    if (!driveAccount) return c.text('Drive account not found', 404);
+
+    const driveService = new GoogleDriveService(
+      c.env.KV,
+      c.env.GOOGLE_CLIENT_ID,
+      c.env.GOOGLE_CLIENT_SECRET
+    );
+
+    const stream = await driveService.downloadFile(
+      file.drive_account_id as string,
+      file.google_file_id as string
+    );
+    
+    c.header('Content-Type', (file.mime_type as string) || 'application/octet-stream');
+    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name as string)}`);
+    
+    return c.body(stream as any);
+  } else {
+    return c.text('Folder download not supported yet', 400);
+  }
 });

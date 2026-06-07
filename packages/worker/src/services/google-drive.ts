@@ -222,6 +222,20 @@ export class GoogleDriveService {
     return response.json();
   }
 
+  async downloadFile(driveAccountId: string, googleFileId: string): Promise<ReadableStream> {
+    const token = await this.getValidToken(driveAccountId);
+
+    const response = await fetch(`${DRIVE_API}/files/${googleFileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${await response.text()}`);
+    }
+
+    return response.body as ReadableStream;
+  }
+
   async deleteFile(driveAccountId: string, googleFileId: string): Promise<void> {
     const token = await this.getValidToken(driveAccountId);
 
