@@ -6,6 +6,7 @@ import { AppError } from '../middleware/error-handler';
 import { DriveService } from '../services/drive.service';
 import { GoogleDriveService } from '../services/google-drive';
 import { UploadRouter } from '../services/upload-router';
+import { AutomationEngine } from '../services/automation.service';
 import { mapDriveRow, mapFileRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
@@ -165,6 +166,9 @@ filesRouter.post('/upload/finalize', async (c) => {
   await c.env.KV.delete(`quota:${driveAccountId}`);
 
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
+
+  const engine = new AutomationEngine(c.env);
+  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId }, c.executionCtx));
 
   return c.json({ file: mapFileRow(created!), success: true }, 201);
 });
