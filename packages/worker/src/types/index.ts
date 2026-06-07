@@ -220,22 +220,27 @@ export function mapDriveFolderRow(row: Record<string, unknown>): DriveFolder {
   };
 }
 
-export function mapSharedLinkRow(row: Record<string, any>): SharedLink {
+export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
+  const targetType = row.target_type as string;
+  if (targetType !== 'file' && targetType !== 'folder') {
+    throw new Error(`Invalid target_type: ${targetType}`);
+  }
+
   return {
-    id: row.id,
-    userId: row.user_id,
-    targetType: row.target_type,
-    targetId: row.target_id,
-    passwordHash: row.password_hash,
-    expiresAt: row.expires_at,
+    id: row.id as string,
+    userId: row.user_id as string,
+    targetType: targetType as 'file' | 'folder',
+    targetId: row.target_id as string,
+    passwordHash: (row.password_hash as string | null | undefined) ?? null,
+    expiresAt: (row.expires_at as string | null | undefined) ?? null,
     allowDownloads: Boolean(row.allow_downloads ?? 1),
     allowUploads: Boolean(row.allow_uploads ?? 0),
-    maxDownloads: row.max_downloads,
+    maxDownloads: (row.max_downloads as number | null | undefined) ?? null,
     requireEmail: Boolean(row.require_email ?? 0),
-    webhookUrl: row.webhook_url,
-    viewCount: row.view_count || 0,
-    downloadCount: row.download_count || 0,
-    createdAt: row.created_at,
+    webhookUrl: (row.webhook_url as string | null | undefined) ?? null,
+    viewCount: (row.view_count as number | undefined) || 0,
+    downloadCount: (row.download_count as number | undefined) || 0,
+    createdAt: row.created_at as string,
   };
 }
 
