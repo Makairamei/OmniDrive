@@ -135,7 +135,7 @@ input, textarea, select {
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px var(--accent-primary-subtle);
+  box-shadow: 0 0 0 1px var(--bg-primary), 0 0 0 3px var(--accent-primary-subtle);
 }
 
 /* ─── Scrollbar ─── */
