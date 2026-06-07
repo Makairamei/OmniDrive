@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { api } from '../lib/api';
 
 interface Rule {
   id: string;
@@ -16,23 +17,26 @@ interface AutomationStore {
 export const useAutomationStore = create<AutomationStore>((set) => ({
   rules: [],
   fetchRules: async () => {
-    const res = await fetch('/api/automations', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    const data = await res.json();
-    set({ rules: data.rules });
+    try {
+      const data = await api.getAutomations();
+      set({ rules: data.rules });
+    } catch (error) {
+      console.error('Failed to fetch automations:', error);
+    }
   },
   toggleRule: async (id, is_active) => {
-    await fetch(`/api/automations/${id}/toggle`, {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ is_active })
-    });
+    // Optimistic update
     set((state) => ({
       rules: state.rules.map(r => r.id === id ? { ...r, is_active } : r)
     }));
+    try {
+      await api.toggleAutomation(id, is_active);
+    } catch (error) {
+      console.error('Failed to toggle automation:', error);
+      // Revert optimistic update
+      set((state) => ({
+        rules: state.rules.map(r => r.id === id ? { ...r, is_active: !is_active } : r)
+      }));
+    }
   }
 }));

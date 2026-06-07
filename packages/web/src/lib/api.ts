@@ -92,6 +92,14 @@ export const api = {
   // Recent files (uses root contents, sorted by date)
   getRecentFiles: () =>
     request<{ files: import('../types').FileEntry[] }>('/api/files/search?q=%'),
+
+  // Automations
+  getAutomations: () => request<{ rules: any[] }>('/api/automations'),
+  toggleAutomation: (id: string, is_active: boolean) =>
+    request<{ success: boolean }>(`/api/automations/${id}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active }),
+    }),
 };
 
 export { ApiError };
