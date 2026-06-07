@@ -120,12 +120,31 @@ export interface SharedMetaResponse {
   requiresPassword?: boolean;
 }
 
-export const createSharedLink = async (targetType: 'file' | 'folder', targetId: string, password?: string, expiresAt?: string) => {
+export interface CreateSharedLinkPayload {
+  targetType: 'file' | 'folder';
+  targetId: string;
+  password?: string;
+  expiresAt?: string;
+  allowDownloads?: boolean;
+  allowUploads?: boolean;
+  maxDownloads?: number | null;
+  requireEmail?: boolean;
+  webhookUrl?: string;
+}
+
+export const createSharedLink = async (payload: CreateSharedLinkPayload) => {
   return request<{ id: string; url: string }>('/api/shared', {
     method: 'POST',
-    body: JSON.stringify({ targetType, targetId, password, expiresAt }),
+    body: JSON.stringify(payload),
   });
 };
+
+export async function updateSharedLink(id: string, payload: Partial<CreateSharedLinkPayload>) {
+  return await request(`/api/shared/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
 
 export const getSharedLinks = async () => {
   return request<{ links: SharedLink[] }>('/api/shared');
