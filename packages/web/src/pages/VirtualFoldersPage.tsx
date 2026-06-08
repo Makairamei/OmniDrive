@@ -5,7 +5,7 @@ import { VirtualFolderSidebar } from '../components/virtual-folders/VirtualFolde
 import { FileGrid } from '../components/files/FileGrid';
 import { useToastStore } from '../stores/toastStore';
 import { FolderPlus, RefreshCw } from 'lucide-react';
-import { useSelectionStore } from '../stores/useSelectionStore';
+import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
 
 export function VirtualFoldersPage() {
@@ -93,7 +93,7 @@ export function VirtualFoldersPage() {
 
   const handleViewInfo = (item: FileEntry | VirtualFolder | DriveFolder, type: 'file' | 'folder') => {
     clearSelection();
-    toggleSelection({ type, item } as any);
+    toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
   };
 

@@ -10,7 +10,7 @@ import {
   ContextMenuSeparator,
 } from '../ui/context-menu';
 import { useUIStore } from '../../stores/useUIStore';
-import { useSelectionStore, isSameItem } from '../../stores/useSelectionStore';
+import { useSelectionStore, type SelectedItem } from '../../stores/useSelectionStore';
 
 function isGoogleNative(mimeType: string | null): boolean {
   return !!mimeType && mimeType.startsWith('application/vnd.google-apps.');
@@ -182,6 +182,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   const viewMode = viewModeProp ?? storeViewMode;
   const { selectedItems, toggleSelection, selectAll, clearSelection } = useSelectionStore();
   const hasSelection = selectedItems.length > 0;
+  const selectedKeys = new Set(selectedItems.map(i => i.item.id || (i.item as any).googleFolderId));
 
   if (files.length === 0 && subfolders.length === 0) {
     return (
@@ -206,7 +207,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               checked={selectedItems.length > 0 && selectedItems.length === files.length + subfolders.length}
               onChange={(e) => {
                 if (e.target.checked) {
-                  const allItems: import('../../stores/useSelectionStore').SelectedItem[] = [
+                  const allItems: SelectedItem[] = [
                     ...subfolders.map(f => ({ type: 'folder' as const, item: f })),
                     ...files.map(f => ({ type: 'file' as const, item: f }))
                   ];
@@ -233,6 +234,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
           const hasError = drive ? errorDrives?.has(drive.id) : false;
           const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
           const isStarred = 'isStarred' in folder ? folder.isStarred : false;
+          const isSelected = selectedKeys.has(folder.id || (folder as any).googleFolderId);
 
           return (
             <ContextMenu key={key}>
@@ -251,7 +253,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     }
                   }}
                   className={`grid grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
-                    selectedItems.some(i => isSameItem(i, { type: 'folder', item: folder }))
+                    isSelected
                       ? 'bg-blue-100 hover:bg-blue-200'
                       : hasError
                       ? 'bg-red-50 hover:bg-red-100'
@@ -262,7 +264,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     <input 
                       type="checkbox" 
                       className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
-                      checked={selectedItems.some(i => isSameItem(i, { type: 'folder', item: folder }))}
+                      checked={isSelected}
                       onChange={() => toggleSelection({ type: 'folder', item: folder })}
                       onClick={(e) => e.stopPropagation()}
                     />
@@ -303,6 +305,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
           const driveColor = getDriveColor(index);
           const native = isGoogleNative(file.mimeType);
           const shared = file.id ? isTargetShared?.(file.id, 'file') : false;
+          const isSelected = selectedKeys.has(file.id);
 
           return (
             <ContextMenu key={file.id}>
@@ -323,7 +326,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     }
                   }}
                   className={`grid grid-cols-[auto_1fr_120px_140px_44px] gap-0 items-center px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-50 group ${
-                    selectedItems.some(i => isSameItem(i, { type: 'file', item: file }))
+                    isSelected
                       ? 'bg-blue-100 hover:bg-blue-200'
                       : 'hover:bg-gray-50'
                   }`}
@@ -332,7 +335,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     <input 
                       type="checkbox" 
                       className={`w-4 h-4 cursor-pointer flex-shrink-0 ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
-                      checked={selectedItems.some(i => isSameItem(i, { type: 'file', item: file }))}
+                      checked={isSelected}
                       onChange={() => toggleSelection({ type: 'file', item: file })}
                       onClick={(e) => e.stopPropagation()}
                     />
@@ -391,6 +394,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
           const hasError = drive ? errorDrives?.has(drive.id) : false;
           const shared = folder.id ? isTargetShared?.(folder.id, 'folder') : false;
           const isStarred = 'isStarred' in folder ? folder.isStarred : false;
+          const isSelected = selectedKeys.has(folder.id || (folder as any).googleFolderId);
 
         return (
           <ContextMenu key={key}>
@@ -409,7 +413,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     }
                 }}
                 className={`p-3 border rounded-xl cursor-pointer flex items-center gap-2.5 transition-all group relative ${
-                    selectedItems.some(i => isSameItem(i, { type: 'folder', item: folder }))
+                    isSelected
                     ? 'bg-blue-100 border-blue-300'
                     : hasError
                     ? 'border-red-300 bg-red-50 hover:border-red-400'
@@ -419,7 +423,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 <input 
                   type="checkbox" 
                   className={`absolute top-2 left-2 z-10 w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
-                  checked={selectedItems.some(i => isSameItem(i, { type: 'folder', item: folder }))}
+                  checked={isSelected}
                   onChange={() => toggleSelection({ type: 'folder', item: folder })}
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -458,6 +462,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
         const driveColor = getDriveColor(index);
         const native = isGoogleNative(file.mimeType);
         const shared = file.id ? isTargetShared?.(file.id, 'file') : false;
+        const isSelected = selectedKeys.has(file.id);
 
         return (
           <ContextMenu key={file.id}>
@@ -478,7 +483,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   }
                 }}
                 className={`p-3 border rounded-xl cursor-pointer flex flex-col justify-between h-36 transition-all group relative ${
-                  selectedItems.some(i => isSameItem(i, { type: 'file', item: file }))
+                  isSelected
                     ? 'bg-blue-100 border-blue-300'
                     : 'bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-200'
                 }`}
@@ -486,7 +491,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 <input 
                   type="checkbox" 
                   className={`absolute top-2 left-2 z-10 w-4 h-4 cursor-pointer ${hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
-                  checked={selectedItems.some(i => isSameItem(i, { type: 'file', item: file }))}
+                  checked={isSelected}
                   onChange={() => toggleSelection({ type: 'file', item: file })}
                   onClick={(e) => e.stopPropagation()}
                 />
