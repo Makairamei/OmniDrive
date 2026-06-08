@@ -28,10 +28,10 @@ filesRouter.get('/search', async (c) => {
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.user_id = ? AND f.name LIKE ? AND f.is_trashed = 0
      ORDER BY f.created_at DESC LIMIT 50`
-  ).bind(userId, `%${query.trim()}%`).all();
+  ).bind(userId, `%${query.trim()}%`).all<Record<string, unknown> & { driveEmail: string }>();
 
   return c.json({
-    files: results.map((r: any) => ({
+    files: results.map((r) => ({
       ...mapFileRow(r),
       driveEmail: r.driveEmail,
     })),
@@ -271,7 +271,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   const created = await db.prepare('SELECT * FROM files WHERE id = ?').bind(id).first();
 
   const engine = new AutomationEngine(c.env);
-  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId }, c.executionCtx));
+  c.executionCtx.waitUntil(engine.processEventTrigger({ ...created, user_id: userId } as any, c.executionCtx));
 
   return c.json({ file: mapFileRow(created!), success: true }, 201);
 });
@@ -286,10 +286,10 @@ filesRouter.get('/trash', async (c) => {
      JOIN drive_accounts d ON f.drive_account_id = d.id
      WHERE f.user_id = ? AND f.is_trashed = 1
      ORDER BY f.updated_at DESC`
-  ).bind(userId).all();
+  ).bind(userId).all<Record<string, unknown> & { driveEmail: string }>();
 
   return c.json({
-    files: results.map((r: any) => ({
+    files: results.map((r) => ({
       ...mapFileRow(r),
       driveEmail: r.driveEmail,
     }))
@@ -301,9 +301,14 @@ filesRouter.post('/:id/restore', async (c) => {
   const userId = c.get('userId');
   const fileId = c.req.param('id');
   
-  await c.env.DB.prepare('UPDATE files SET is_trashed = 0, updated_at = datetime("now") WHERE id = ? AND user_id = ?')
+  const { meta } = await c.env.DB.prepare('UPDATE files SET is_trashed = 0, updated_at = datetime("now") WHERE id = ? AND user_id = ?')
     .bind(fileId, userId).run();
-	  return c.json({ success: true });
+
+  if (meta.changes === 0) {
+    throw new AppError(404, 'File not found');
+  }
+
+  return c.json({ success: true });
 });
 
 // DELETE /api/files/:id/permanent
@@ -327,6 +332,7 @@ filesRouter.delete('/:id/permanent', async (c) => {
     await driveService.deleteFile(file.driveId, file.google_file_id);
   } catch (error) {
     console.error('Failed to permanently delete file from Google Drive:', error);
+    throw new AppError(500, 'Failed to delete file from Google Drive');
   }
 
   await db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').bind(fileId, userId).run();

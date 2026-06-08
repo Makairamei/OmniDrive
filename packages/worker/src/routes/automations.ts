@@ -4,7 +4,7 @@ import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { AppError } from '../middleware/error-handler';
 import { mapAutomationRuleRow } from '../types/index';
-import { IS_ACTIVE, IS_INACTIVE, IS_NOT_TRASHED } from '../services/automation.service';
+import { IS_ACTIVE, IS_INACTIVE } from '../services/automation.service';
 
 export const automationsRouter = new Hono<AppContext>({ strict: false });
 automationsRouter.use('*', authGuard);

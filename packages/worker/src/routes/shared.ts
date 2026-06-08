@@ -304,7 +304,7 @@ sharedRouter.get('/:id/download', async (c) => {
     return c.text('Downloads are disabled for this link', 403);
   }
 
-  if (link.maxDownloads !== null && link.downloadCount >= link.maxDownloads) {
+  if (link.maxDownloads !== null && link.maxDownloads !== undefined && link.downloadCount >= link.maxDownloads) {
     return c.text('Maximum download limit reached', 403);
   }
 

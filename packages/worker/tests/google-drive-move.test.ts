@@ -15,12 +15,12 @@ describe('GoogleDriveService Move Operations', () => {
       put: vi.fn().mockResolvedValue(undefined),
     };
     service = new GoogleDriveService(mockKv, 'client-id', 'client-secret');
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   describe('shareFile', () => {
     it('sends POST request to share file', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (globalThis.fetch as any).mockResolvedValue({
         ok: true,
         json: async () => ({ id: 'permission-id' })
       });
@@ -28,7 +28,7 @@ describe('GoogleDriveService Move Operations', () => {
       const permId = await service.shareFile('driveAccountId', 'fileId', 'test@example.com');
       
       expect(permId).toBe('permission-id');
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://www.googleapis.com/drive/v3/files/fileId/permissions?sendNotificationEmail=false',
         expect.objectContaining({
           method: 'POST',
@@ -48,13 +48,13 @@ describe('GoogleDriveService Move Operations', () => {
 
   describe('revokeShare', () => {
     it('sends DELETE request to revoke share', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (globalThis.fetch as any).mockResolvedValue({
         ok: true
       });
 
       await service.revokeShare('driveAccountId', 'fileId', 'permissionId');
       
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://www.googleapis.com/drive/v3/files/fileId/permissions/permissionId',
         expect.objectContaining({
           method: 'DELETE',
@@ -68,7 +68,7 @@ describe('GoogleDriveService Move Operations', () => {
 
   describe('copyFile', () => {
     it('sends POST request to copy file', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (globalThis.fetch as any).mockResolvedValue({
         ok: true,
         json: async () => ({ id: 'new-file-id', name: 'Copy' })
       });
@@ -76,7 +76,7 @@ describe('GoogleDriveService Move Operations', () => {
       const file = await service.copyFile('driveAccountId', 'fileId');
       
       expect(file.id).toBe('new-file-id');
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://www.googleapis.com/drive/v3/files/fileId/copy?fields=id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime',
         expect.objectContaining({
           method: 'POST',
@@ -90,13 +90,13 @@ describe('GoogleDriveService Move Operations', () => {
 
   describe('trashFile', () => {
     it('sends PATCH request to trash file', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (globalThis.fetch as any).mockResolvedValue({
         ok: true
       });
 
       await service.trashFile('driveAccountId', 'fileId');
       
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://www.googleapis.com/drive/v3/files/fileId',
         expect.objectContaining({
           method: 'PATCH',
