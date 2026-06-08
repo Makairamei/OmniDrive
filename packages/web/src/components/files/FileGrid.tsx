@@ -31,6 +31,7 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFile?: (id: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
+  onAddToVirtualFolder?: (file: FileEntry) => void;
 }> = ({
   type,
   id,
@@ -47,6 +48,7 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFile,
   onRestore,
   onPermanentDelete,
+  onAddToVirtualFolder,
 }) => (
   <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
     {isTrashView ? (
@@ -90,6 +92,11 @@ const ItemContextMenuContent: React.FC<{
         {onShare && id && (
           <ContextMenuItem onClick={() => onShare(id, type)}>
             <Share2 className="mr-2 h-4 w-4" /> Share
+          </ContextMenuItem>
+        )}
+        {type === 'file' && onAddToVirtualFolder && file && (
+          <ContextMenuItem onClick={() => onAddToVirtualFolder(file)}>
+            <Folder className="mr-2 h-4 w-4" /> Add to Virtual Folder
           </ContextMenuItem>
         )}
         {type === 'file' && onRenameFile && id && name && (
@@ -136,6 +143,7 @@ export interface FileGridProps {
   isTrashView?: boolean;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
+  onAddToVirtualFolder?: (file: FileEntry) => void;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -155,6 +163,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   isTrashView,
   onRestore,
   onPermanentDelete,
+  onAddToVirtualFolder,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
   const viewMode = viewModeProp ?? storeViewMode;
@@ -304,6 +313,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onDeleteFile={onDeleteFile}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
+                onAddToVirtualFolder={onAddToVirtualFolder}
               />
             </ContextMenu>
           );

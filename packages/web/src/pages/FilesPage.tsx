@@ -9,6 +9,7 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { AddToVirtualFolderModal } from '../components/virtual-folders/AddToVirtualFolderModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
@@ -29,6 +30,7 @@ export function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
+  const [virtualFolderTarget, setVirtualFolderTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel } = useUIStore();
 
@@ -176,6 +178,7 @@ export function FilesPage() {
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
               onMoveDrive={setMoveFileTarget}
+              onAddToVirtualFolder={setVirtualFolderTarget}
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
             />
@@ -202,6 +205,17 @@ export function FilesPage() {
               addToast('success', 'File moved successfully');
             }}
             onError={(msg) => addToast('error', msg)}
+          />
+        )}
+        {virtualFolderTarget && (
+          <AddToVirtualFolderModal
+            file={virtualFolderTarget}
+            onClose={() => setVirtualFolderTarget(null)}
+            onSuccess={() => {
+              setVirtualFolderTarget(null);
+              addToast('success', 'Added to virtual folder');
+              refresh();
+            }}
           />
         )}
       </div>
