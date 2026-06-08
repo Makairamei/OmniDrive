@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
+import * as bcrypt from 'bcryptjs';
 import type { AppContext, SessionData } from '../types/env';
 import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/error-handler';
@@ -7,6 +8,51 @@ import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 
 export const authRouter = new Hono<AppContext>({ strict: false });
+
+authRouter.post('/register', async (c) => {
+  const { username, password, email } = await c.req.json();
+  if (!username || !password) throw new AppError(400, 'Username and password required');
+
+  const db = c.env.DB;
+  const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+  if (existing) throw new AppError(400, 'Username already exists');
+
+  const id = generateId();
+  const passwordHash = await bcrypt.hash(password, 10);
+  
+  await db.prepare(
+    'INSERT INTO users (id, username, password_hash, email, name) VALUES (?, ?, ?, ?, ?)'
+  ).bind(id, username, passwordHash, email || null, username).run();
+
+  const sessionData: SessionData = { userId: id, username, email: email || null, name: username, avatarUrl: null };
+  const sessionId = generateId();
+  
+  await c.env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), { expirationTtl: 60 * 60 * 24 * 7 });
+  setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: true, httpOnly: true, sameSite: 'None', maxAge: 60 * 60 * 24 * 7 });
+
+  return c.json({ success: true, user: sessionData });
+});
+
+authRouter.post('/login', async (c) => {
+  const { username, password } = await c.req.json();
+  if (!username || !password) throw new AppError(400, 'Username and password required');
+
+  const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url FROM users WHERE username = ?').bind(username).first<any>();
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    throw new AppError(401, 'Invalid credentials');
+  }
+
+  const sessionData: SessionData = { userId: user.id, username: user.username, email: user.email, name: user.name, avatarUrl: user.avatar_url };
+  const sessionId = generateId();
+  
+  await c.env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), { expirationTtl: 60 * 60 * 24 * 7 });
+  setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: true, httpOnly: true, sameSite: 'None', maxAge: 60 * 60 * 24 * 7 });
+
+  return c.json({ success: true, user: sessionData });
+});
+
+// Protected routes below
+authRouter.use('*', authGuard);
 
 authRouter.get('/google', (c) => {
   const env = c.env;
@@ -19,7 +65,7 @@ authRouter.get('/google', (c) => {
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('scope', scope);
   authUrl.searchParams.append('access_type', 'offline');
-  authUrl.searchParams.append('prompt', 'consent'); // Force refresh token for demo
+  authUrl.searchParams.append('prompt', 'consent');
   
   const state = crypto.randomUUID();
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
@@ -43,47 +89,20 @@ authRouter.get('/callback', async (c) => {
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
   const authService = new AuthService(env);
 
-  // 1. Exchange code
   const tokens = await authService.exchangeCodeForTokens(code, redirectUri);
-  
-  // 2. Get user info
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
-  // 3. Get existing session (to check if we are connecting a drive vs logging in)
-  const sid = getCookie(c, 'omnidrive_sid');
-  let currentUserId: string | null = null;
-  if (sid) {
-    const sessionJson = await env.KV.get(`session:${sid}`);
-    if (sessionJson) {
-      currentUserId = JSON.parse(sessionJson).userId;
-    }
-  }
-
+  // User MUST be logged in to reach here (authGuard enforces this)
+  const targetUserId = c.get('userId'); 
   const db = env.DB;
-  let targetUserId: string;
 
-  if (currentUserId) {
-    targetUserId = currentUserId;
-  } else {
-    // Normal Login: Upsert user in D1
-    let user = await db.prepare('SELECT id FROM users WHERE google_id = ?').bind(googleUser.id).first<{ id: string }>();
-    
-    if (!user) {
-      const newUserId = generateId();
-      await db.prepare(
-        'INSERT INTO users (id, google_id, email, name, avatar_url) VALUES (?, ?, ?, ?, ?)'
-      ).bind(newUserId, googleUser.id, googleUser.email, googleUser.name, googleUser.picture).run();
-      targetUserId = newUserId;
-    } else {
-      targetUserId = user.id;
-    }
-  }
+  // Link google account to local user
+  await db.prepare('UPDATE users SET google_id = ?, email = COALESCE(email, ?), name = COALESCE(name, ?), avatar_url = COALESCE(avatar_url, ?) WHERE id = ?')
+    .bind(googleUser.id, googleUser.email, googleUser.name, googleUser.picture, targetUserId).run();
 
-  // 3b. Upsert drive account and save tokens
   let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first<{ id: string }>();
   if (!drive) {
     const driveId = generateId();
-    // Check if user already has drives to determine is_primary
     const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first<{ count: number }>();
     const isPrimary = (res && res.count === 0) ? 1 : 0;
 
@@ -94,38 +113,11 @@ authRouter.get('/callback', async (c) => {
   }
   await env.KV.put(`tokens:${drive.id}`, JSON.stringify(tokens));
 
-  // 4. Create session ONLY if we are logging in (no current session)
-  if (!currentUserId) {
-    const sessionId = generateId();
-    const sessionData: SessionData = {
-      userId: targetUserId,
-      email: googleUser.email,
-      name: googleUser.name,
-      avatarUrl: googleUser.picture,
-    };
-
-    await env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), {
-      expirationTtl: 60 * 60 * 24 * 7, // 7 days
-    });
-
-    setCookie(c, 'omnidrive_sid', sessionId, {
-      path: '/',
-      secure: true,
-      httpOnly: true,
-      sameSite: 'None',
-      maxAge: 60 * 60 * 24 * 7,
-    });
-  }
-
   return c.redirect(`${env.FRONTEND_URL}/`);
 });
 
-// Protected routes below
-authRouter.use('*', authGuard);
-
 authRouter.get('/me', (c) => {
-  const session = c.get('session');
-  return c.json({ user: session });
+  return c.json({ user: c.get('session') });
 });
 
 authRouter.post('/logout', async (c) => {
@@ -133,7 +125,6 @@ authRouter.post('/logout', async (c) => {
   if (sid) {
     await c.env.KV.delete(`session:${sid}`);
   }
-  
   deleteCookie(c, 'omnidrive_sid', { path: '/', secure: true, sameSite: 'None' });
   return c.json({ success: true });
 });
