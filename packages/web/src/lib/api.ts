@@ -94,6 +94,14 @@ export const api = {
       body: JSON.stringify({ targetDriveId }),
     }),
 
+  // Trash
+  getTrashFiles: () =>
+    request<{ files: import('../types').FileEntry[] }>('/api/files/trash'),
+  restoreFile: (id: string) =>
+    request<{ success: boolean }>(`/api/files/${id}/restore`, { method: 'POST' }),
+  deleteFilePermanent: (id: string) =>
+    request<{ success: boolean }>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
+
   // Recent files (uses root contents, sorted by date)
   getRecentFiles: () =>
     request<{ files: import('../types').FileEntry[] }>('/api/files/search?q=%'),
