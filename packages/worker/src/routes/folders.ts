@@ -36,6 +36,12 @@ async function buildBreadcrumb(db: any, userId: string, folderId: string | null)
   return path;
 }
 
+foldersRouter.get('/tree', async (c) => {
+  const userId = c.get('userId');
+  const { results } = await c.env.DB.prepare('SELECT * FROM virtual_folders WHERE user_id = ? ORDER BY name ASC').bind(userId).all();
+  return c.json({ folders: results.map(mapFolderRow) });
+});
+
 foldersRouter.get('/:id?', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id') || null;
@@ -105,6 +111,19 @@ foldersRouter.post('/', async (c) => {
   return c.json({ id, name, parentId });
 });
 
+foldersRouter.put('/:id', async (c) => {
+  const userId = c.get('userId');
+  const folderId = c.req.param('id');
+  const body = await c.req.json();
+  const { name, parentId, icon, color } = body;
+  
+  const { meta } = await c.env.DB.prepare(
+    'UPDATE virtual_folders SET name = coalesce(?, name), parent_id = ?, icon = coalesce(?, icon), color = coalesce(?, color), updated_at = datetime("now") WHERE id = ? AND user_id = ?'
+  ).bind(name ?? null, parentId !== undefined ? parentId : null, icon ?? null, color ?? null, folderId, userId).run();
+  
+  if (meta.changes === 0) throw new AppError(404, 'Folder not found');
+  return c.json({ success: true });
+});
 
 foldersRouter.post('/:id/star', async (c) => {
   const userId = c.get('userId');
