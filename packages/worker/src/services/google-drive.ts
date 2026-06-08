@@ -229,10 +229,33 @@ export class GoogleDriveService {
     return response.json();
   }
 
-  async downloadFile(driveAccountId: string, googleFileId: string): Promise<ReadableStream<Uint8Array>> {
+  async downloadFile(driveAccountId: string, googleFileId: string, mimeType?: string): Promise<{stream: ReadableStream<Uint8Array>, exportedMimeType?: string, exportedExtension?: string}> {
     const token = await this.getValidToken(driveAccountId);
 
-    const response = await fetch(`${DRIVE_API}/files/${googleFileId}?alt=media`, {
+    let url = `${DRIVE_API}/files/${googleFileId}?alt=media`;
+    let exportedMimeType = undefined;
+    let exportedExtension = undefined;
+
+    // Handle Google Workspace documents by exporting them
+    if (mimeType && mimeType.startsWith('application/vnd.google-apps.')) {
+      if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+        exportedMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        exportedExtension = '.xlsx';
+      } else if (mimeType === 'application/vnd.google-apps.document') {
+        exportedMimeType = 'application/pdf';
+        exportedExtension = '.pdf';
+      } else if (mimeType === 'application/vnd.google-apps.presentation') {
+        exportedMimeType = 'application/pdf';
+        exportedExtension = '.pdf';
+      } else {
+        // Fallback for drawing, script, etc.
+        exportedMimeType = 'application/pdf';
+        exportedExtension = '.pdf';
+      }
+      url = `${DRIVE_API}/files/${googleFileId}/export?mimeType=${exportedMimeType}`;
+    }
+
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -243,7 +266,11 @@ export class GoogleDriveService {
     if (!response.body) {
       throw new Error('Response body is null');
     }
-    return response.body as ReadableStream<Uint8Array>;
+    return {
+      stream: response.body as ReadableStream<Uint8Array>,
+      exportedMimeType,
+      exportedExtension
+    };
   }
 
   async deleteFile(driveAccountId: string, googleFileId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Copy, Check, Share2, Calendar, Lock } from 'lucide-react';
+import { X, Copy, Check, Share2, Calendar, Lock, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { createSharedLink } from '../lib/api';
 import { useSharedStore } from '../stores/sharedStore';
 
@@ -12,6 +12,13 @@ interface ShareModalProps {
 export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
   const [password, setPassword] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [allowDownloads, setAllowDownloads] = useState(true);
+  const [allowUploads, setAllowUploads] = useState(false);
+  const [maxDownloads, setMaxDownloads] = useState('');
+  const [requireEmail, setRequireEmail] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sharedUrl, setSharedUrl] = useState('');
@@ -45,7 +52,12 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
         targetType,
         targetId,
         password: password || undefined,
-        expiresAt: isoExpiresAt
+        expiresAt: isoExpiresAt,
+        allowDownloads,
+        allowUploads: targetType === 'folder' ? allowUploads : false,
+        maxDownloads: maxDownloads ? parseInt(maxDownloads, 10) : null,
+        requireEmail,
+        webhookUrl: webhookUrl || undefined
       });
       setSharedUrl(resp.url);
       useSharedStore.getState().fetchSharedLinks();
@@ -121,6 +133,77 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
                 />
               </div>
 
+              <div className="pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAdvanced(!showAdvanced)} 
+                  className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  <Settings size={14} className="mr-1.5" />
+                  Advanced Settings
+                  {showAdvanced ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
+                </button>
+
+                {showAdvanced && (
+                  <div className="flex flex-col gap-3 mt-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={allowDownloads} 
+                        onChange={(e) => setAllowDownloads(e.target.checked)} 
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                      />
+                      <span className="select-none">Allow Downloads</span>
+                    </label>
+                    
+                    {targetType === 'folder' && (
+                      <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={allowUploads} 
+                          onChange={(e) => setAllowUploads(e.target.checked)} 
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                        />
+                        <span className="select-none">Allow Uploads (Public Drop folder)</span>
+                      </label>
+                    )}
+
+                    <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={requireEmail} 
+                        onChange={(e) => setRequireEmail(e.target.checked)} 
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                      />
+                      <span className="select-none">Require Email to View</span>
+                    </label>
+
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Max Downloads</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        value={maxDownloads} 
+                        onChange={(e) => setMaxDownloads(e.target.value)} 
+                        placeholder="e.g. 10 (Leave blank for unlimited)" 
+                        className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Webhook URL</label>
+                      <input 
+                        type="url" 
+                        value={webhookUrl} 
+                        onChange={(e) => setWebhookUrl(e.target.value)} 
+                        placeholder="e.g. https://your-api.com/webhook" 
+                        className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                 <button 
                   type="button" 
@@ -178,3 +261,4 @@ export function ShareModal({ targetType, targetId, onClose }: ShareModalProps) {
     </div>
   );
 }
+

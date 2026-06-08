@@ -114,7 +114,8 @@ sharedRouter.post('/', authGuard, async (c) => {
       if (e.message && e.message.includes('UNIQUE constraint failed')) {
         attempts++;
       } else {
-        return c.json({ error: 'Failed to create shared link' }, 500);
+        console.error('Error creating shared link:', e);
+        return c.json({ error: 'Failed to create shared link', details: e.message }, 500);
       }
     }
   }
@@ -132,7 +133,13 @@ sharedRouter.get('/', authGuard, async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
   
-  const { results } = await db.prepare('SELECT * FROM shared_links WHERE user_id = ?').bind(userId).all();
+  const { results } = await db.prepare(`
+    SELECT s.*, COALESCE(f.name, v.name) as targetName 
+    FROM shared_links s 
+    LEFT JOIN files f ON s.target_type = 'file' AND s.target_id = f.id 
+    LEFT JOIN virtual_folders v ON s.target_type = 'folder' AND s.target_id = v.id 
+    WHERE s.user_id = ?
+  `).bind(userId).all();
   return c.json({ links: results.map(mapSharedLinkRow) });
 });
 
@@ -160,11 +167,49 @@ sharedRouter.put('/:id', authGuard, async (c) => {
     allowUploads = existing.allow_uploads === 1,
     maxDownloads = existing.max_downloads,
     requireEmail = existing.require_email === 1,
-    webhookUrl = existing.webhook_url
+    webhookUrl = existing.webhook_url,
+    password
   } = body;
   
+  let passwordHash = existing.password_hash;
+  
+  if (password !== undefined) {
+    if (password === null || password === '') {
+      passwordHash = null;
+    } else {
+      const encoder = new TextEncoder();
+      const passwordData = encoder.encode(password);
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        passwordData,
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits']
+      );
+
+      const hashBuffer = await crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        256
+      );
+
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const saltArray = Array.from(salt);
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const saltHex = saltArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      passwordHash = `${saltHex}:${hashHex}`;
+    }
+  }
+  
   const result = await db.prepare(
-    'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ? WHERE id = ? AND user_id = ?'
+    'UPDATE shared_links SET expires_at = ?, allow_downloads = ?, allow_uploads = ?, max_downloads = ?, require_email = ?, webhook_url = ?, password_hash = ? WHERE id = ? AND user_id = ?'
   )
   .bind(
     expiresAt || null,
@@ -173,6 +218,7 @@ sharedRouter.put('/:id', authGuard, async (c) => {
     maxDownloads || null,
     requireEmail ? 1 : 0,
     webhookUrl || null,
+    passwordHash,
     id,
     userId
   )
@@ -342,22 +388,34 @@ sharedRouter.get('/:id/download', async (c) => {
     );
 
     let stream: ReadableStream<Uint8Array>;
+    let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
+    let finalFileName = file.name as string;
+
     try {
-      stream = await driveService.downloadFile(
+      const downloadResult = await driveService.downloadFile(
         file.drive_account_id as string,
-        file.google_file_id as string
+        file.google_file_id as string,
+        file.mime_type as string
       );
-    } catch (e) {
-      return c.text('Failed to download file', 502);
+      stream = downloadResult.stream;
+      
+      if (downloadResult.exportedMimeType && downloadResult.exportedExtension) {
+        finalMimeType = downloadResult.exportedMimeType;
+        finalFileName = `${finalFileName}${downloadResult.exportedExtension}`;
+      }
+    } catch (e: any) {
+      console.error('Download error:', e);
+      return c.text(`Failed to download file: ${e.message}`, 502);
     }
     
-    c.header('Content-Type', (file.mime_type as string) || 'application/octet-stream');
-    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name as string)}`);
-    if (file.size) {
+    c.header('Content-Type', finalMimeType);
+    c.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(finalFileName)}`);
+    if (file.size && !finalFileName.endsWith('.pdf') && !finalFileName.endsWith('.xlsx')) {
+      // Exported files don't have a reliable pre-known size
       c.header('Content-Length', String(file.size));
     }
     
-    return c.body(stream as ReadableStream<Uint8Array>);
+    return c.body(stream);
   } else {
     return c.text('Folder download not supported yet', 400);
   }

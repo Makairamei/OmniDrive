@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useUploadStore } from '../stores/uploadStore';
 import { useDriveStore } from '../stores/driveStore';
 import { Breadcrumb } from '../components/Breadcrumb';

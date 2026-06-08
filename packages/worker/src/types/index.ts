@@ -85,6 +85,7 @@ export interface SharedLink {
   userId: string;
   targetType: 'file' | 'folder';
   targetId: string;
+  targetName?: string;
   passwordHash?: string | null;
   expiresAt?: string | null;
   allowDownloads: boolean;
@@ -235,6 +236,7 @@ export function mapSharedLinkRow(row: Record<string, unknown>): SharedLink {
     userId: row.user_id as string,
     targetType: targetType as 'file' | 'folder',
     targetId: row.target_id as string,
+    targetName: (row.targetName as string) ?? undefined,
     passwordHash: (row.password_hash as string | null | undefined) ?? null,
     expiresAt: (row.expires_at as string | null | undefined) ?? null,
     allowDownloads: Boolean(row.allow_downloads ?? 1),
