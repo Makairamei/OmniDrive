@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDriveStore } from '../stores/driveStore';
 import { useSharedStore } from '../stores/sharedStore';
@@ -25,7 +25,7 @@ export function SearchPage() {
   const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
-  const fetchResults = async (q: string) => {
+  const fetchResults = useCallback(async (q: string, signal?: AbortSignal) => {
     if (!q) {
       setResults([]);
       return;
@@ -33,25 +33,44 @@ export function SearchPage() {
     setIsLoading(true);
     try {
       const data = await api.searchFiles(q);
+      if (signal?.aborted) return;
       setResults(data.files);
     } catch (error) {
+      if (signal?.aborted) return;
       addToast('error', 'Failed to perform search');
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
-    fetchResults(query);
-  }, [query]);
+    const controller = new AbortController();
+    fetchResults(query, controller.signal);
+    return () => controller.abort();
+  }, [query, fetchResults]);
+
+  const getDriveInfo = useCallback((driveAccountId?: string | null) => {
+    if (!driveAccountId) return { drive: null, index: 0 };
+    const index = drives.findIndex((d) => d.id === driveAccountId);
+    if (index === -1) return { drive: drives[0] || null, index: 0 };
+    return { drive: drives[index], index };
+  }, [drives]);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">Search results for "{query}"</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">
+          {query ? `Search results for "${query}"` : 'Search'}
+        </h1>
       </div>
 
-      {isLoading ? (
+      {!query ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <p className="text-lg">Please enter a search term.</p>
+        </div>
+      ) : isLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
@@ -60,12 +79,7 @@ export function SearchPage() {
           <FileGrid
             files={results}
             subfolders={[]}
-            getDriveInfo={(driveAccountId) => {
-              if (!driveAccountId) return { drive: null, index: 0 };
-              const index = drives.findIndex((d) => d.id === driveAccountId);
-              if (index === -1) return { drive: drives[0] || null, index: 0 };
-              return { drive: drives[index], index };
-            }}
+            getDriveInfo={getDriveInfo}
             onShare={(id, type) => setShareTarget({ id, type })}
             onMoveDrive={setMoveFileTarget}
             onPreviewFile={setPreviewFile}
