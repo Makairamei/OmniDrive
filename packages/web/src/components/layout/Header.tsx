@@ -16,7 +16,7 @@ export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const { addToast } = useToastStore();
+  const addToast = useToastStore((state) => state.addToast);
 
   const handlePlaceholderClick = () => {
     addToast('info', 'Coming soon!');
@@ -58,21 +58,21 @@ export const Header: React.FC = () => {
       </div>
       
       <div className="flex items-center gap-2 px-2 text-gray-600">
-        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
+        <button aria-label="Help" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
           <HelpCircle size={24} />
         </button>
-        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
+        <button aria-label="Settings" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
           <Settings size={24} />
         </button>
-        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block mr-2">
+        <button aria-label="Apps" onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block mr-2">
           <Grid3X3 size={24} />
         </button>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none">
+            <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none">
               U
-            </div>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-white shadow-xl rounded-xl border border-gray-200">
             <DropdownMenuLabel className="font-normal">

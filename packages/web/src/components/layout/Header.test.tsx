@@ -46,11 +46,8 @@ describe('Header', () => {
       </MemoryRouter>
     );
     
-    // Help icon is the first one, Settings second, Grid third.
-    const buttons = screen.getAllByRole('button');
-    // buttons[0] = Sidebar toggle
-    // buttons[1] = Help
-    fireEvent.click(buttons[1]);
+    const helpButton = screen.getByRole('button', { name: 'Help' });
+    fireEvent.click(helpButton);
     const toasts = useToastStore.getState().toasts;
     expect(toasts).toEqual(
       expect.arrayContaining([
