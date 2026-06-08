@@ -15,9 +15,12 @@ function isGoogleNative(mimeType: string | null): boolean {
   return !!mimeType && mimeType.startsWith('application/vnd.google-apps.');
 }
 
-const FileContextMenuContent: React.FC<{
-  file: FileEntry;
-  native: boolean;
+const ItemContextMenuContent: React.FC<{
+  type: 'file' | 'folder';
+  id?: string;
+  name?: string;
+  native?: boolean;
+  file?: FileEntry;
   isTrashView?: boolean;
   onPreviewFile?: (file: FileEntry) => void;
   onShare?: (id: string, type: 'file' | 'folder') => void;
@@ -27,8 +30,11 @@ const FileContextMenuContent: React.FC<{
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
 }> = ({
-  file,
+  type,
+  id,
+  name,
   native,
+  file,
   isTrashView,
   onPreviewFile,
   onShare,
@@ -41,14 +47,14 @@ const FileContextMenuContent: React.FC<{
   <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
     {isTrashView ? (
       <>
-        {onRestore && (
-          <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onRestore(file.id)}>
+        {onRestore && id && (
+          <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onRestore(id)}>
             <RefreshCw size={16} className="mr-3 text-gray-500" />
             Restore
           </ContextMenuItem>
         )}
-        {onPermanentDelete && (
-          <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => onPermanentDelete(file.id)}>
+        {onPermanentDelete && id && (
+          <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => onPermanentDelete(id)}>
             <Trash2 size={16} className="mr-3 text-red-500" />
             Delete Forever
           </ContextMenuItem>
@@ -56,42 +62,44 @@ const FileContextMenuContent: React.FC<{
       </>
     ) : (
       <>
-        <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onPreviewFile?.(file)}>
-          <Eye size={16} className="mr-3 text-gray-500" />
-          Preview
-        </ContextMenuItem>
-        {native && file.webViewLink && (
+        {type === 'file' && file && onPreviewFile && (
+          <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onPreviewFile(file)}>
+            <Eye size={16} className="mr-3 text-gray-500" />
+            Preview
+          </ContextMenuItem>
+        )}
+        {type === 'file' && file && native && file.webViewLink && (
           <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
             <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
           </ContextMenuItem>
         )}
-        {!native && file.webContentLink && (
+        {type === 'file' && file && !native && file.webContentLink && (
           <ContextMenuItem onClick={() => window.open(file.webContentLink!, '_blank', 'noopener,noreferrer')}>
             <Download className="mr-2 h-4 w-4" /> Download
           </ContextMenuItem>
         )}
-        {onShare && (
-          <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
+        {onShare && id && (
+          <ContextMenuItem onClick={() => onShare(id, type)}>
             <Share2 className="mr-2 h-4 w-4" /> Share
           </ContextMenuItem>
         )}
-        {onRenameFile && (
+        {type === 'file' && onRenameFile && id && name && (
           <ContextMenuItem onClick={() => {
-            const newName = prompt('Rename file:', file.name);
-            if (newName && newName !== file.name) onRenameFile(file.id, newName);
+            const newName = prompt('Rename file:', name);
+            if (newName && newName !== name) onRenameFile(id, newName);
           }}>
             <Pencil className="mr-2 h-4 w-4" /> Rename
           </ContextMenuItem>
         )}
-        {onMoveDrive && (
+        {type === 'file' && onMoveDrive && file && (
           <ContextMenuItem onClick={() => onMoveDrive(file)}>
             <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
           </ContextMenuItem>
         )}
-        {onDeleteFile && (
+        {type === 'file' && onDeleteFile && id && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
+            <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(id)}>
               <Trash2 className="mr-2 h-4 w-4" /> Delete
             </ContextMenuItem>
           </>
@@ -204,13 +212,15 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   <div />
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent>
-                {!isTrashView && folder.id && onShare && (
-                  <ContextMenuItem onClick={() => onShare(folder.id!, 'folder')}>
-                    <Share2 className="mr-2 h-4 w-4" /> Share
-                  </ContextMenuItem>
-                )}
-              </ContextMenuContent>
+              <ItemContextMenuContent
+                type="folder"
+                id={folder.id}
+                name={folder.name}
+                isTrashView={isTrashView}
+                onShare={onShare}
+                onRestore={onRestore}
+                onPermanentDelete={onPermanentDelete}
+              />
             </ContextMenu>
           );
         })}
@@ -263,7 +273,10 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   <div />
                 </div>
               </ContextMenuTrigger>
-              <FileContextMenuContent
+              <ItemContextMenuContent
+                type="file"
+                id={file.id}
+                name={file.name}
                 file={file}
                 native={native}
                 isTrashView={isTrashView}
@@ -320,13 +333,15 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent>
-              {!isTrashView && folder.id && onShare && (
-                <ContextMenuItem onClick={() => onShare(folder.id!, 'folder')}>
-                  <Share2 className="mr-2 h-4 w-4" /> Share
-                </ContextMenuItem>
-              )}
-            </ContextMenuContent>
+            <ItemContextMenuContent
+              type="folder"
+              id={folder.id}
+              name={folder.name}
+              isTrashView={isTrashView}
+              onShare={onShare}
+              onRestore={onRestore}
+              onPermanentDelete={onPermanentDelete}
+            />
           </ContextMenu>
         );
       })}
@@ -379,7 +394,10 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 </div>
               </div>
             </ContextMenuTrigger>
-            <FileContextMenuContent
+            <ItemContextMenuContent
+              type="file"
+              id={file.id}
+              name={file.name}
               file={file}
               native={native}
               isTrashView={isTrashView}
