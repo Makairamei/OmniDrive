@@ -7,6 +7,7 @@ import { useToastStore } from '../stores/toastStore';
 import { FolderPlus, RefreshCw } from 'lucide-react';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { useUIStore } from '../stores/useUIStore';
+import { BulkActionBar } from '../components/layout/BulkActionBar';
 
 export function VirtualFoldersPage() {
   const [folders, setFolders] = useState<VirtualFolder[]>([]);
@@ -16,7 +17,7 @@ export function VirtualFoldersPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const addToast = useToastStore(state => state.addToast);
-  const { clearSelection, toggleSelection } = useSelectionStore();
+  const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
 
   const fetchTree = async () => {
@@ -102,23 +103,29 @@ export function VirtualFoldersPage() {
       <VirtualFolderSidebar folders={folders} activeFolderId={activeFolderId} onSelect={setActiveFolderId} />
       
       <div className="flex-1 flex flex-col h-full bg-gray-50 border-l border-gray-200">
-        <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-800">
-            {activeFolderId ? folders.find(f => f.id === activeFolderId)?.name : 'Select a Virtual Folder'}
-          </h2>
-          <div className="flex gap-2">
-            <button onClick={handleCreateFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-              <FolderPlus size={16} /> New Folder
-            </button>
-            {activeFolderId && (
-              <>
-                <button onClick={handleSync} disabled={isSyncing} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-                  <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} /> Sync
-                </button>
-              </>
-            )}
+        {selectedItems.length > 0 ? (
+          <BulkActionBar 
+            onActionComplete={() => activeFolderId && fetchContents(activeFolderId)} 
+          />
+        ) : (
+          <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-800">
+              {activeFolderId ? folders.find(f => f.id === activeFolderId)?.name : 'Select a Virtual Folder'}
+            </h2>
+            <div className="flex gap-2">
+              <button onClick={handleCreateFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                <FolderPlus size={16} /> New Folder
+              </button>
+              {activeFolderId && (
+                <>
+                  <button onClick={handleSync} disabled={isSyncing} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} /> Sync
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex-1 overflow-auto p-4">
           {isLoading ? (

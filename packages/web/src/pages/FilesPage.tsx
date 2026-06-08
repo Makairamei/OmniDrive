@@ -17,6 +17,7 @@ import { useMergedDrive } from '../hooks/useMergedDrive';
 import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
+import { BulkActionBar } from '../components/layout/BulkActionBar';
 import type { FileEntry, DriveFolder, VirtualFolder } from '../types';
 
 export function FilesPage() {
@@ -34,7 +35,7 @@ export function FilesPage() {
   const [virtualFolderTarget, setVirtualFolderTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
-  const { clearSelection, toggleSelection } = useSelectionStore();
+  const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
 
   const handleViewInfo = (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => {
     clearSelection();
@@ -99,64 +100,71 @@ export function FilesPage() {
     <DropZone>
       <div className="flex flex-col h-full w-full">
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-4 px-4 pt-4">
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
-            <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
-          </div>
+        {selectedItems.length > 0 ? (
+          <BulkActionBar 
+            onActionComplete={() => refresh()} 
+            onVirtualFolderRequested={() => setVirtualFolderTarget(selectedItems[0].item as FileEntry)}
+          />
+        ) : (
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4 px-4 pt-4">
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+              <Breadcrumb items={breadcrumb} driveId={driveIdParam || undefined} />
+            </div>
 
-          <div className="flex gap-2 items-center">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Filter files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 pl-3 pr-8 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  onClick={() => setSearchQuery('')}
+            <div className="flex gap-2 items-center">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Filter files..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-48 pl-3 pr-8 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white mr-1">
+                <button 
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 ${viewMode === 'list' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  title="List layout"
                 >
-                  <X size={14} />
+                  <List size={18} />
                 </button>
-              )}
-            </div>
-            
-            <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white mr-1">
+                <button 
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 ${viewMode === 'grid' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  title="Grid layout"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </div>
+              
               <button 
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 ${viewMode === 'list' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                title="List layout"
+                onClick={toggleInfoPanel}
+                className={`p-1.5 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+                title="View details"
               >
-                <List size={18} />
+                <Info size={20} />
               </button>
-              <button 
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 ${viewMode === 'grid' ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                title="Grid layout"
-              >
-                <LayoutGrid size={18} />
-              </button>
-            </div>
-            
-            <button 
-              onClick={toggleInfoPanel}
-              className={`p-1.5 rounded-full mr-1 ${isInfoPanelOpen ? 'bg-[#c2e7ff] text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
-              title="View details"
-            >
-              <Info size={20} />
-            </button>
 
-            <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleCreateFolder}>
-              <FolderPlus size={16} /> New Folder
-            </button>
-            <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
-              <Upload size={16} /> Upload
-            </button>
+              <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" onClick={handleCreateFolder}>
+                <FolderPlus size={16} /> New Folder
+              </button>
+              <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700" onClick={() => setShowModal(true)}>
+                <Upload size={16} /> Upload
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {isLoading || isDrivesLoading ? (
           <div className="flex flex-col items-center justify-center p-16">
