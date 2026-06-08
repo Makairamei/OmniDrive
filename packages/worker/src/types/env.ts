@@ -9,9 +9,10 @@ export interface Env {
 
 export interface SessionData {
   userId: string;
-  email: string;
-  name: string;
-  avatarUrl: string | null;
+  username: string;
+  email?: string | null;
+  name?: string | null;
+  avatarUrl?: string | null;
 }
 
 export type AppContext = {
