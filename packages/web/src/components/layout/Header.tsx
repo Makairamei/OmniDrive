@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Search, Settings, HelpCircle, Grid3X3 } from 'lucide-react';
+import { Menu, Search, Settings, HelpCircle, Grid3X3, LogOut, User } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
+import { useToastStore } from '../../stores/toastStore';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const { addToast } = useToastStore();
+
+  const handlePlaceholderClick = () => {
+    addToast('info', 'Coming soon!');
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && query.trim()) {
@@ -44,18 +58,36 @@ export const Header: React.FC = () => {
       </div>
       
       <div className="flex items-center gap-2 px-2 text-gray-600">
-        <button className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
+        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
           <HelpCircle size={24} />
         </button>
-        <button className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
+        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block">
           <Settings size={24} />
         </button>
-        <button className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block mr-2">
+        <button onClick={handlePlaceholderClick} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden sm:block mr-2">
           <Grid3X3 size={24} />
         </button>
-        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700">
-          U
-        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium cursor-pointer hover:bg-blue-700 select-none">
+              U
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 bg-white shadow-xl rounded-xl border border-gray-200">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1 py-1">
+                <p className="text-sm font-medium leading-none text-gray-800">User</p>
+                <p className="text-xs leading-none text-gray-500">user@example.com</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-gray-200" />
+            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50" onClick={handlePlaceholderClick}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
