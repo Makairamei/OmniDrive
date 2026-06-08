@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS virtual_folders (
     parent_id       TEXT REFERENCES virtual_folders(id) ON DELETE CASCADE,
     icon            TEXT,
     color           TEXT,
+    is_starred      INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, parent_id, name)
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS files (
     web_view_link   TEXT,
     web_content_link TEXT,
     is_trashed      INTEGER NOT NULL DEFAULT 0,
+    is_starred      INTEGER NOT NULL DEFAULT 0,
     google_created_at  TEXT,
     google_modified_at TEXT,
     synced_at       TEXT NOT NULL DEFAULT (datetime('now')),

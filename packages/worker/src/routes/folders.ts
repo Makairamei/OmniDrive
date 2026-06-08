@@ -105,6 +105,23 @@ foldersRouter.post('/', async (c) => {
   return c.json({ id, name, parentId });
 });
 
+
+foldersRouter.post('/:id/star', async (c) => {
+  const userId = c.get('userId');
+  const folderId = c.req.param('id');
+  const { meta } = await c.env.DB.prepare('UPDATE virtual_folders SET is_starred = 1, updated_at = datetime("now") WHERE id = ? AND user_id = ?').bind(folderId, userId).run();
+  if (meta.changes === 0) throw new AppError(404, 'Folder not found');
+  return c.json({ success: true });
+});
+
+foldersRouter.post('/:id/unstar', async (c) => {
+  const userId = c.get('userId');
+  const folderId = c.req.param('id');
+  const { meta } = await c.env.DB.prepare('UPDATE virtual_folders SET is_starred = 0, updated_at = datetime("now") WHERE id = ? AND user_id = ?').bind(folderId, userId).run();
+  if (meta.changes === 0) throw new AppError(404, 'Folder not found');
+  return c.json({ success: true });
+});
+
 foldersRouter.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const folderId = c.req.param('id');

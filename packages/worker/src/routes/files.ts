@@ -7,7 +7,7 @@ import { DriveService } from '../services/drive.service';
 import { GoogleDriveService } from '../services/google-drive';
 import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
-import { mapDriveRow, mapFileRow } from '../types';
+import { mapDriveRow, mapFileRow, mapFolderRow } from '../types';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -36,6 +36,27 @@ filesRouter.get('/search', async (c) => {
       driveEmail: r.driveEmail,
     })),
     query: query.trim(),
+  });
+});
+
+
+// GET /api/files/starred
+filesRouter.get('/starred', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+
+  const { results: fileRows } = await db.prepare(
+    'SELECT f.*, d.email as driveEmail FROM files f JOIN drive_accounts d ON f.drive_account_id = d.id WHERE f.user_id = ? AND f.is_starred = 1 AND f.is_trashed = 0 ORDER BY f.created_at DESC'
+  ).bind(userId).all();
+
+  const { results: folderRows } = await db.prepare(
+    'SELECT * FROM virtual_folders WHERE user_id = ? AND is_starred = 1 ORDER BY updated_at DESC'
+  ).bind(userId).all();
+
+  // Need to import mapFolderRow if not already
+  return c.json({
+    files: fileRows.map((r) => ({ ...mapFileRow(r), driveEmail: r.driveEmail })),
+    folders: folderRows.map(mapFolderRow),
   });
 });
 
@@ -308,6 +329,23 @@ filesRouter.post('/:id/restore', async (c) => {
     throw new AppError(404, 'File not found');
   }
 
+  return c.json({ success: true });
+});
+
+
+filesRouter.post('/:id/star', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const { meta } = await c.env.DB.prepare('UPDATE files SET is_starred = 1 WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
+  if (meta.changes === 0) throw new AppError(404, 'File not found');
+  return c.json({ success: true });
+});
+
+filesRouter.post('/:id/unstar', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const { meta } = await c.env.DB.prepare('UPDATE files SET is_starred = 0 WHERE id = ? AND user_id = ?').bind(fileId, userId).run();
+  if (meta.changes === 0) throw new AppError(404, 'File not found');
   return c.json({ success: true });
 });
 

@@ -35,6 +35,7 @@ export interface VirtualFolder {
   parentId: string | null;
   icon: string;
   color: string;
+  isStarred: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +54,7 @@ export interface FileEntry {
   webViewLink: string | null;
   webContentLink: string | null;
   isTrashed: boolean;
+  isStarred: boolean;
   googleCreatedAt: string | null;
   googleModifiedAt: string | null;
   syncedAt: string;
@@ -180,6 +182,7 @@ export function mapFolderRow(row: Record<string, unknown>): VirtualFolder {
     parentId: (row.parent_id as string) ?? null,
     icon: (row.icon as string) ?? DEFAULT_FOLDER_ICON,
     color: (row.color as string) ?? DEFAULT_FOLDER_COLOR,
+    isStarred: row.is_starred === 1,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -200,6 +203,7 @@ export function mapFileRow(row: Record<string, unknown>): FileEntry {
     webViewLink: (row.web_view_link as string) ?? null,
     webContentLink: (row.web_content_link as string) ?? null,
     isTrashed: row.is_trashed === 1,
+    isStarred: row.is_starred === 1,
     googleCreatedAt: (row.google_created_at as string) ?? null,
     googleModifiedAt: (row.google_modified_at as string) ?? null,
     syncedAt: row.synced_at as string,
