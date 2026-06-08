@@ -1,18 +1,26 @@
 import { create } from 'zustand';
-import type { FileEntry, DriveFolder } from '../types';
+import type { FileEntry, DriveFolder, VirtualFolder } from '../types';
 
 export type SelectedItem = 
   | { type: 'file'; item: FileEntry }
-  | { type: 'folder'; item: DriveFolder };
+  | { type: 'folder'; item: DriveFolder | VirtualFolder };
 
 interface SelectionState {
-  selectedItem: SelectedItem | null;
-  setSelection: (item: SelectedItem | null) => void;
+  selectedItems: SelectedItem[];
+  toggleSelection: (item: SelectedItem) => void;
+  selectAll: (items: SelectedItem[]) => void;
   clearSelection: () => void;
 }
 
 export const useSelectionStore = create<SelectionState>((set) => ({
-  selectedItem: null,
-  setSelection: (item) => set({ selectedItem: item }),
-  clearSelection: () => set({ selectedItem: null }),
+  selectedItems: [],
+  toggleSelection: (item) => set((state) => {
+    const exists = state.selectedItems.some(i => i.item.id === item.item.id);
+    if (exists) {
+      return { selectedItems: state.selectedItems.filter(i => i.item.id !== item.item.id) };
+    }
+    return { selectedItems: [...state.selectedItems, item] };
+  }),
+  selectAll: (items) => set({ selectedItems: items }),
+  clearSelection: () => set({ selectedItems: [] }),
 }));

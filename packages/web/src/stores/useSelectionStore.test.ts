@@ -4,15 +4,26 @@ import type { FileEntry } from '../types';
 
 describe('useSelectionStore', () => {
   beforeEach(() => {
-    useSelectionStore.setState({ selectedItem: null });
+    useSelectionStore.setState({ selectedItems: [] });
   });
 
-  it('adds and clears selection', () => {
-    const dummyFile = { id: 'file-1', name: 'File 1' } as FileEntry;
-    useSelectionStore.getState().setSelection({ type: 'file', item: dummyFile });
-    expect(useSelectionStore.getState().selectedItem).toEqual({ type: 'file', item: dummyFile });
+  it('should toggle selection correctly', () => {
+    const dummyFile = { id: '1', name: 'test.txt' } as FileEntry;
+    
+    useSelectionStore.getState().toggleSelection({ type: 'file', item: dummyFile });
+    expect(useSelectionStore.getState().selectedItems).toEqual([{ type: 'file', item: dummyFile }]);
+    
+    useSelectionStore.getState().toggleSelection({ type: 'file', item: dummyFile });
+    expect(useSelectionStore.getState().selectedItems).toEqual([]);
+  });
 
+  it('should select all and clear selection', () => {
+    const dummyFile = { id: '1', name: 'test.txt' } as FileEntry;
+    
+    useSelectionStore.getState().selectAll([{ type: 'file', item: dummyFile }]);
+    expect(useSelectionStore.getState().selectedItems.length).toBe(1);
+    
     useSelectionStore.getState().clearSelection();
-    expect(useSelectionStore.getState().selectedItem).toBeNull();
+    expect(useSelectionStore.getState().selectedItems).toEqual([]);
   });
 });
