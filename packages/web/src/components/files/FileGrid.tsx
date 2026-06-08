@@ -1,7 +1,7 @@
 import React from 'react';
 import type { FileEntry, DriveFolder } from '../../types';
 import { getFileIcon, formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
-import { Folder, Download, Trash2, Pencil, ExternalLink, Share2 } from 'lucide-react';
+import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,6 +29,9 @@ export interface FileGridProps {
   onMoveDrive?: (file: FileEntry) => void;
   /** Override viewMode (optional). If not provided, reads from UIStore. */
   viewMode?: 'grid' | 'list';
+  isTrashView?: boolean;
+  onRestore?: (fileId: string) => void;
+  onPermanentDelete?: (fileId: string) => void;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -44,6 +47,9 @@ export const FileGrid: React.FC<FileGridProps> = ({
   errorDrives,
   onMoveDrive,
   viewMode: viewModeProp,
+  isTrashView,
+  onRestore,
+  onPermanentDelete,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
   const viewMode = viewModeProp ?? storeViewMode;
@@ -138,6 +144,9 @@ export const FileGrid: React.FC<FileGridProps> = ({
                     setSelection({ type: 'file', item: file });
                   }}
                   onDoubleClick={() => {
+                    if (isTrashView) {
+                      return;
+                    }
                     if (native && file.webViewLink) {
                       window.open(file.webViewLink, '_blank', 'noopener,noreferrer');
                     } else {
@@ -167,41 +176,60 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   <div />
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent>
-                {native && file.webViewLink && (
-                  <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
-                    <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
-                  </ContextMenuItem>
-                )}
-                {!native && file.webContentLink && (
-                  <ContextMenuItem onClick={() => window.open(file.webContentLink!, '_blank', 'noopener,noreferrer')}>
-                    <Download className="mr-2 h-4 w-4" /> Download
-                  </ContextMenuItem>
-                )}
-                {onShare && (
-                  <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
-                    <Share2 className="mr-2 h-4 w-4" /> Share
-                  </ContextMenuItem>
-                )}
-                {onRenameFile && (
-                  <ContextMenuItem onClick={() => {
-                    const newName = prompt('Rename file:', file.name);
-                    if (newName && newName !== file.name) onRenameFile(file.id, newName);
-                  }}>
-                    <Pencil className="mr-2 h-4 w-4" /> Rename
-                  </ContextMenuItem>
-                )}
-                {onMoveDrive && (
-                  <ContextMenuItem onClick={() => onMoveDrive(file)}>
-                    <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
-                  </ContextMenuItem>
-                )}
-                {onDeleteFile && (
+              <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
+                {isTrashView ? (
                   <>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onRestore?.(file.id)}>
+                      <RefreshCw size={16} className="mr-3 text-gray-500" />
+                      Restore
                     </ContextMenuItem>
+                    <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => onPermanentDelete?.(file.id)}>
+                      <Trash2 size={16} className="mr-3 text-red-500" />
+                      Delete Forever
+                    </ContextMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onPreviewFile?.(file)}>
+                      <Eye size={16} className="mr-3 text-gray-500" />
+                      Preview
+                    </ContextMenuItem>
+                    {native && file.webViewLink && (
+                      <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
+                        <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
+                      </ContextMenuItem>
+                    )}
+                    {!native && file.webContentLink && (
+                      <ContextMenuItem onClick={() => window.open(file.webContentLink!, '_blank', 'noopener,noreferrer')}>
+                        <Download className="mr-2 h-4 w-4" /> Download
+                      </ContextMenuItem>
+                    )}
+                    {onShare && (
+                      <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
+                        <Share2 className="mr-2 h-4 w-4" /> Share
+                      </ContextMenuItem>
+                    )}
+                    {onRenameFile && (
+                      <ContextMenuItem onClick={() => {
+                        const newName = prompt('Rename file:', file.name);
+                        if (newName && newName !== file.name) onRenameFile(file.id, newName);
+                      }}>
+                        <Pencil className="mr-2 h-4 w-4" /> Rename
+                      </ContextMenuItem>
+                    )}
+                    {onMoveDrive && (
+                      <ContextMenuItem onClick={() => onMoveDrive(file)}>
+                        <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
+                      </ContextMenuItem>
+                    )}
+                    {onDeleteFile && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </ContextMenuItem>
+                      </>
+                    )}
                   </>
                 )}
               </ContextMenuContent>
@@ -276,6 +304,9 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   setSelection({ type: 'file', item: file });
                 }}
                 onDoubleClick={() => {
+                  if (isTrashView) {
+                    return;
+                  }
                   if (native && file.webViewLink) {
                     window.open(file.webViewLink, '_blank', 'noopener,noreferrer');
                   } else {
@@ -305,41 +336,60 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 </div>
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent>
-              {native && file.webViewLink && (
-                <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
-                  <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
-                </ContextMenuItem>
-              )}
-              {!native && file.webContentLink && (
-                <ContextMenuItem onClick={() => window.open(file.webContentLink!, '_blank', 'noopener,noreferrer')}>
-                  <Download className="mr-2 h-4 w-4" /> Download
-                </ContextMenuItem>
-              )}
-              {onShare && (
-                <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
-                  <Share2 className="mr-2 h-4 w-4" /> Share
-                </ContextMenuItem>
-              )}
-              {onRenameFile && (
-                <ContextMenuItem onClick={() => {
-                  const newName = prompt('Rename file:', file.name);
-                  if (newName && newName !== file.name) onRenameFile(file.id, newName);
-                }}>
-                  <Pencil className="mr-2 h-4 w-4" /> Rename
-                </ContextMenuItem>
-              )}
-              {onMoveDrive && (
-                <ContextMenuItem onClick={() => onMoveDrive(file)}>
-                  <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
-                </ContextMenuItem>
-              )}
-              {onDeleteFile && (
+            <ContextMenuContent className="w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden py-1">
+              {isTrashView ? (
                 <>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onRestore?.(file.id)}>
+                    <RefreshCw size={16} className="mr-3 text-gray-500" />
+                    Restore
                   </ContextMenuItem>
+                  <ContextMenuItem className="px-3 py-2 text-sm text-red-600 cursor-pointer hover:bg-red-50 outline-none flex items-center" onClick={() => onPermanentDelete?.(file.id)}>
+                    <Trash2 size={16} className="mr-3 text-red-500" />
+                    Delete Forever
+                  </ContextMenuItem>
+                </>
+              ) : (
+                <>
+                  <ContextMenuItem className="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 outline-none flex items-center" onClick={() => onPreviewFile?.(file)}>
+                    <Eye size={16} className="mr-3 text-gray-500" />
+                    Preview
+                  </ContextMenuItem>
+                  {native && file.webViewLink && (
+                    <ContextMenuItem onClick={() => window.open(file.webViewLink!, '_blank', 'noopener,noreferrer')}>
+                      <ExternalLink className="mr-2 h-4 w-4" /> Open in Google
+                    </ContextMenuItem>
+                  )}
+                  {!native && file.webContentLink && (
+                    <ContextMenuItem onClick={() => window.open(file.webContentLink!, '_blank', 'noopener,noreferrer')}>
+                      <Download className="mr-2 h-4 w-4" /> Download
+                    </ContextMenuItem>
+                  )}
+                  {onShare && (
+                    <ContextMenuItem onClick={() => onShare(file.id, 'file')}>
+                      <Share2 className="mr-2 h-4 w-4" /> Share
+                    </ContextMenuItem>
+                  )}
+                  {onRenameFile && (
+                    <ContextMenuItem onClick={() => {
+                      const newName = prompt('Rename file:', file.name);
+                      if (newName && newName !== file.name) onRenameFile(file.id, newName);
+                    }}>
+                      <Pencil className="mr-2 h-4 w-4" /> Rename
+                    </ContextMenuItem>
+                  )}
+                  {onMoveDrive && (
+                    <ContextMenuItem onClick={() => onMoveDrive(file)}>
+                      <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
+                    </ContextMenuItem>
+                  )}
+                  {onDeleteFile && (
+                    <>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem className="text-red-600" onClick={() => onDeleteFile(file.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </ContextMenuItem>
+                    </>
+                  )}
                 </>
               )}
             </ContextMenuContent>
