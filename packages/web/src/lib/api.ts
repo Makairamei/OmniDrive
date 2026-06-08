@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+import type { VirtualFolder } from '../types';
 
 class ApiError extends Error {
   constructor(
@@ -55,23 +56,18 @@ export const api = {
   getRootContents: () => request<import('../types').FolderContents>('/api/folders/'),
   getFolderContents: (id: string) => request<import('../types').FolderContents>(`/api/folders/${id}`),
   createFolder: (name: string, parentId?: string, icon?: string, color?: string) =>
-    request<{ folder: import('../types').VirtualFolder }>('/api/folders', {
+    request<{ folder: VirtualFolder }>('/api/folders', {
       method: 'POST',
       body: JSON.stringify({ name, parentId, icon, color }),
     }),
-  updateFolder: (id: string, data: { name?: string; parentId?: string }) =>
-    request<{ folder: import('../types').VirtualFolder }>(`/api/folders/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-  deleteFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
-
-  getVirtualFolderTree: () => request<{ folders: import('../types').VirtualFolder[] }>('/api/folders/tree'),
-  updateVirtualFolder: (id: string, data: { name?: string; parentId?: string | null; icon?: string; color?: string }) =>
+  updateFolder: (id: string, data: { name?: string; parentId?: string | null; icon?: string; color?: string }) =>
     request<{ success: boolean }>(`/api/folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+  deleteFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
+
+  getVirtualFolderTree: () => request<{ folders: VirtualFolder[] }>('/api/folders/tree'),
   addFilesToVirtualFolder: (id: string, fileIds: string[]) =>
     request<{ success: boolean }>(`/api/folders/${id}/files`, {
       method: 'POST',
