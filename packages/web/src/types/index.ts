@@ -6,7 +6,6 @@ export interface User {
   avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
-  isStarred?: boolean;
 }
 
 export interface DriveAccount {
