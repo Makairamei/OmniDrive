@@ -1,4 +1,4 @@
-.PHONY: help deploy-worker deploy-web deploy-all db-migrate-local db-migrate-remote
+.PHONY: help deploy-worker deploy-web deploy-all db-migrate-local db-migrate-remote reset-local reset-remote
 
 # Tampilkan bantuan
 help:
@@ -34,3 +34,13 @@ db-migrate-local:
 db-migrate-remote:
 	@echo "=> Migrating Remote D1 Database..."
 	cd packages/worker && npm run db:migrate:remote
+
+# Reset Data Local
+reset-local:
+	@echo "=> Starting Local Factory Reset..."
+	cd packages/worker && npm run db:reset:local
+
+# Reset Data Remote
+reset-remote:
+	@echo "=> Starting Remote Factory Reset..."
+	cd packages/worker && npm run db:reset:remote
