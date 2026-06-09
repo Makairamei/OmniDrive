@@ -1,4 +1,7 @@
 import readline from 'readline';
+import { execSync } from 'child_process';
+import { writeFileSync, unlinkSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 export async function promptUser(isRemote) {
   if (!isRemote) return true;
@@ -40,4 +43,29 @@ export function resetKV(execSync, writeFileSync, unlinkSync, flag) {
   } else {
     console.log('KV Namespace sudah kosong.');
   }
+}
+
+async function main() {
+  const isRemote = process.argv.includes('--remote');
+  const flag = isRemote ? '--remote' : '--local';
+
+  const confirmed = await promptUser(isRemote);
+  if (!confirmed) {
+    console.log('Operasi dibatalkan.');
+    process.exit(1);
+  }
+
+  try {
+    resetD1(execSync, flag);
+    resetKV(execSync, writeFileSync, unlinkSync, flag);
+    console.log('\n=> Selesai! Data berhasil direset.');
+  } catch (err) {
+    console.error('Terjadi kesalahan selama reset:', err.message);
+    process.exit(1);
+  }
+}
+
+// Only run if executed directly (not when imported in tests)
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main();
 }
