@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { WorkspaceFolder } from '../../types';
 import { WorkspaceTreeNode } from './WorkspaceTreeNode';
 
@@ -30,33 +30,19 @@ export function WorkspaceSidebar({
     setExpandedIds(prev => new Set([...prev, id])); // Auto-expand on select
   }, [onSelect]);
 
-  const rootFolders = folders.filter(f => !f.parentId);
-
-  const renderTree = (folderList: WorkspaceFolder[], level: number = 0) => {
-    return folderList.map(folder => {
-      const children = folders.filter(f => f.parentId === folder.id);
-      const isActive = activeFolderId === folder.id;
-      const isExpanded = expandedIds.has(folder.id);
-
-      return (
-        <div key={folder.id}>
-          <WorkspaceTreeNode
-            folder={folder}
-            level={level}
-            isExpanded={isExpanded}
-            isActive={isActive}
-            hasChildren={children.length > 0}
-            onSelect={handleSelect}
-            onToggle={handleToggle}
-            onRename={onRename}
-            onDelete={onDelete}
-            onNewSubfolder={onNewSubfolder}
-          />
-          {isExpanded && children.length > 0 && renderTree(children, level + 1)}
-        </div>
-      );
+  const childrenMap = useMemo(() => {
+    const map = new Map<string | null, WorkspaceFolder[]>();
+    folders.forEach(f => {
+      const parentId = f.parentId || null;
+      if (!map.has(parentId)) {
+        map.set(parentId, []);
+      }
+      map.get(parentId)!.push(f);
     });
-  };
+    return map;
+  }, [folders]);
+
+  const rootFolders = childrenMap.get(null) || [];
 
   return (
     <div className="w-64 border-r border-gray-200 bg-gray-50/50 flex flex-col h-full overflow-y-auto py-4">
@@ -67,7 +53,21 @@ export function WorkspaceSidebar({
         {rootFolders.length === 0 ? (
           <p className="px-4 text-sm text-gray-500 italic">No workspaces yet.</p>
         ) : (
-          renderTree(rootFolders)
+          rootFolders.map(folder => (
+            <WorkspaceTreeNode
+              key={folder.id}
+              folder={folder}
+              level={0}
+              activeFolderId={activeFolderId}
+              expandedIds={expandedIds}
+              childrenMap={childrenMap}
+              onSelect={handleSelect}
+              onToggle={handleToggle}
+              onRename={onRename}
+              onDelete={onDelete}
+              onNewSubfolder={onNewSubfolder}
+            />
+          ))
         )}
       </div>
     </div>

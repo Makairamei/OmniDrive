@@ -5,9 +5,9 @@ import type { WorkspaceFolder } from '../../types';
 interface WorkspaceTreeNodeProps {
   folder: WorkspaceFolder;
   level: number;
-  isExpanded: boolean;
-  isActive: boolean;
-  hasChildren: boolean;
+  activeFolderId: string | null;
+  expandedIds: Set<string>;
+  childrenMap: Map<string | null, WorkspaceFolder[]>;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onRename: (id: string) => void;
@@ -16,9 +16,14 @@ interface WorkspaceTreeNodeProps {
 }
 
 export function WorkspaceTreeNode({
-  folder, level, isExpanded, isActive, hasChildren,
+  folder, level, activeFolderId, expandedIds, childrenMap,
   onSelect, onToggle, onRename, onDelete, onNewSubfolder
 }: WorkspaceTreeNodeProps) {
+  const children = childrenMap.get(folder.id) || [];
+  const hasChildren = children.length > 0;
+  const isExpanded = expandedIds.has(folder.id);
+  const isActive = activeFolderId === folder.id;
+
   return (
     <div className="group flex flex-col">
       <div 
@@ -53,20 +58,40 @@ export function WorkspaceTreeNode({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content className="min-w-[160px] bg-white rounded-md shadow-lg border border-gray-200 p-1 z-50">
-              <DropdownMenu.Item onClick={() => onNewSubfolder(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 hover:outline-none rounded cursor-pointer">
+              <DropdownMenu.Item onSelect={() => onNewSubfolder(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 hover:outline-none rounded cursor-pointer">
                 <FolderPlus size={14} /> New Sub-folder
               </DropdownMenu.Item>
-              <DropdownMenu.Item onClick={() => onRename(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 hover:outline-none rounded cursor-pointer">
+              <DropdownMenu.Item onSelect={() => onRename(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 hover:outline-none rounded cursor-pointer">
                 <Edit2 size={14} /> Rename
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="h-px bg-gray-200 my-1" />
-              <DropdownMenu.Item onClick={() => onDelete(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:outline-none rounded cursor-pointer">
+              <DropdownMenu.Item onSelect={() => onDelete(folder.id)} className="flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:outline-none rounded cursor-pointer">
                 <Trash2 size={14} /> Delete
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       </div>
+
+      {isExpanded && hasChildren && (
+        <div>
+          {children.map(child => (
+            <WorkspaceTreeNode
+              key={child.id}
+              folder={child}
+              level={level + 1}
+              activeFolderId={activeFolderId}
+              expandedIds={expandedIds}
+              childrenMap={childrenMap}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onRename={onRename}
+              onDelete={onDelete}
+              onNewSubfolder={onNewSubfolder}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
