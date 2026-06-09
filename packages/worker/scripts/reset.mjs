@@ -33,7 +33,7 @@ export function resetD1(execSync, flag) {
     if (tables.length > 0) {
       console.log(`Menghapus ${tables.length} tabel...`);
       const dropCommands = tables.map(t => `DROP TABLE IF EXISTS ${t};`).join(' ');
-      execSync(`npx wrangler d1 execute omnidrive ${flag} --command="PRAGMA defer_foreign_keys = ON; ${dropCommands}"`, { stdio: 'inherit' });
+      execSync(`npx wrangler d1 execute omnidrive ${flag} --command="PRAGMA foreign_keys = OFF; ${dropCommands}"`, { stdio: 'inherit' });
     } else {
       console.log('Database D1 sudah kosong.');
     }
