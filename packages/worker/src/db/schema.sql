@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     email           TEXT UNIQUE,
     name            TEXT,
     avatar_url      TEXT,
+    is_super_admin  INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -205,3 +206,15 @@ CREATE TABLE IF NOT EXISTS workspace_policies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_policies_workspace ON workspace_policies(workspace_id);
+
+-- Invitation Codes
+CREATE TABLE IF NOT EXISTS invitation_codes (
+    id              TEXT PRIMARY KEY,
+    code            TEXT UNIQUE NOT NULL,
+    created_by      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    max_uses        INTEGER NOT NULL DEFAULT 1,
+    used_count      INTEGER NOT NULL DEFAULT 0,
+    expires_at      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes ON invitation_codes(code);
