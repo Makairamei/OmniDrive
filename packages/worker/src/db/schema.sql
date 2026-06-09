@@ -41,18 +41,37 @@ CREATE TABLE IF NOT EXISTS drive_folders (
     UNIQUE(drive_account_id, google_folder_id)
 );
 
--- Virtual folder structure (Omnidrive-only, not in Google Drive)
-CREATE TABLE IF NOT EXISTS virtual_folders (
+-- Workspaces (Collaborative spaces)
+CREATE TABLE IF NOT EXISTS workspaces (
     id              TEXT PRIMARY KEY,
-    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name            TEXT NOT NULL,
-    parent_id       TEXT REFERENCES virtual_folders(id) ON DELETE CASCADE,
+    owner_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Workspace members
+CREATE TABLE IF NOT EXISTS workspace_members (
+    id              TEXT PRIMARY KEY,
+    workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+    joined_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(workspace_id, user_id)
+);
+
+-- Workspace folders (Omnidrive-only folder structure)
+CREATE TABLE IF NOT EXISTS workspace_folders (
+    id              TEXT PRIMARY KEY,
+    workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    parent_id       TEXT REFERENCES workspace_folders(id) ON DELETE CASCADE,
     icon            TEXT,
     color           TEXT,
     is_starred      INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(user_id, parent_id, name)
+    UNIQUE(workspace_id, parent_id, name)
 );
 
 -- File metadata synced from Google Drive
@@ -61,7 +80,8 @@ CREATE TABLE IF NOT EXISTS files (
     user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     drive_account_id TEXT NOT NULL REFERENCES drive_accounts(id) ON DELETE CASCADE,
     google_file_id  TEXT NOT NULL,
-    virtual_folder_id TEXT REFERENCES virtual_folders(id) ON DELETE SET NULL,
+    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_folder_id TEXT REFERENCES workspace_folders(id) ON DELETE SET NULL,
     google_parent_id TEXT,
     name            TEXT NOT NULL,
     mime_type       TEXT,
@@ -89,11 +109,13 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 
 -- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_files_user_folder ON files(user_id, virtual_folder_id);
+CREATE INDEX IF NOT EXISTS idx_files_user_workspace ON files(user_id, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_files_workspace_folder ON files(workspace_folder_id);
 CREATE INDEX IF NOT EXISTS idx_files_drive ON files(drive_account_id);
 CREATE INDEX IF NOT EXISTS idx_files_name ON files(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_files_google_parent ON files(drive_account_id, google_parent_id);
-CREATE INDEX IF NOT EXISTS idx_folders_user_parent ON virtual_folders(user_id, parent_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_folders_parent ON workspace_folders(workspace_id, parent_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_drives_user ON drive_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_drive_folders_parent ON drive_folders(drive_account_id, google_parent_id);
 

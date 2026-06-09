@@ -32,16 +32,32 @@ export interface AggregateQuota {
   driveCount: number;
 }
 
-export interface VirtualFolder {
+export interface Workspace {
   id: string;
-  userId: string;
   name: string;
-  parentId: string | null;
-  icon: string;
-  color: string;
+  ownerId: string;
   createdAt: string;
   updatedAt: string;
-  isStarred?: boolean;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  role: 'owner' | 'admin' | 'member';
+  joinedAt: string;
+}
+
+export interface WorkspaceFolder {
+  id: string;
+  workspaceId: string;
+  name: string;
+  parentId: string | null;
+  icon: string | null;
+  color: string | null;
+  isStarred: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FileEntry {
@@ -49,7 +65,8 @@ export interface FileEntry {
   userId: string;
   driveAccountId: string;
   googleFileId: string;
-  virtualFolderId: string | null;
+  workspaceId: string | null;
+  workspaceFolderId: string | null;
   googleParentId: string | null;
   name: string;
   mimeType: string | null;
@@ -73,8 +90,8 @@ export interface BreadcrumbItem {
 }
 
 export interface FolderContents {
-  folder: VirtualFolder | null;
-  subfolders: VirtualFolder[];
+  folder: WorkspaceFolder | null;
+  subfolders: WorkspaceFolder[];
   files: FileEntry[];
   breadcrumb: BreadcrumbItem[];
 }
