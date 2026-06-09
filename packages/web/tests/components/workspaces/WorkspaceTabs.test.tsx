@@ -22,7 +22,7 @@ describe('Workspace Tab Components', () => {
 
   it('renders Files tab with FileGrid mock', () => {
     const mockProps = {
-      files: [], subfolders: [], getDriveInfo: vi.fn(), onNavigateFolder: vi.fn(),
+      files: [], subfolders: [], getDriveInfo: vi.fn().mockReturnValue({ drive: {}, index: 0 }), onNavigateFolder: vi.fn(),
       onPreviewFile: vi.fn(), onShare: vi.fn(), onRenameFile: vi.fn(), onDeleteFile: vi.fn(),
       onMoveDrive: vi.fn(), isTargetShared: vi.fn(), errorDrives: new Set<string>(), onViewInfo: vi.fn()
     };
