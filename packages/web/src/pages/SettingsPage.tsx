@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import { useToastStore } from '../stores/toastStore';
+import { AdminInvitations } from '../components/admin/AdminInvitations';
 import { Plus, Key, X } from 'lucide-react';
 
 export function SettingsPage() {
@@ -152,6 +153,7 @@ export function SettingsPage() {
           </form>
         </div>
       )}
+      <AdminInvitations />
     </div>
   );
 }
