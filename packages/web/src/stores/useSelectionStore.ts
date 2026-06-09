@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { FileEntry, DriveFolder, VirtualFolder } from '../types';
+import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 
 export type SelectedItem = 
   | { type: 'file'; item: FileEntry }
-  | { type: 'folder'; item: DriveFolder | VirtualFolder };
+  | { type: 'folder'; item: DriveFolder | WorkspaceFolder };
 
 interface SelectionState {
   selectedItems: SelectedItem[];

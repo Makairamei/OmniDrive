@@ -1,16 +1,16 @@
 import { Folder } from 'lucide-react';
-import type { VirtualFolder } from '../../types';
+import type { WorkspaceFolder } from '../../types';
 
-interface VirtualFolderSidebarProps {
-  folders: VirtualFolder[];
+interface WorkspaceSidebarProps {
+  folders: WorkspaceFolder[];
   activeFolderId: string | null;
   onSelect: (id: string) => void;
 }
 
-export function VirtualFolderSidebar({ folders, activeFolderId, onSelect }: VirtualFolderSidebarProps) {
+export function WorkspaceSidebar({ folders, activeFolderId, onSelect }: WorkspaceSidebarProps) {
   const rootFolders = folders.filter(f => !f.parentId);
 
-  const renderTree = (folderList: VirtualFolder[], level: number = 0) => {
+  const renderTree = (folderList: WorkspaceFolder[], level: number = 0) => {
     return folderList.map(folder => {
       const children = folders.filter(f => f.parentId === folder.id);
       const isActive = activeFolderId === folder.id;
@@ -32,10 +32,10 @@ export function VirtualFolderSidebar({ folders, activeFolderId, onSelect }: Virt
 
   return (
     <div className="w-64 border-r border-gray-200 bg-white flex flex-col h-full overflow-y-auto py-4">
-      <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Virtual Folders</h3>
+      <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Workspaces</h3>
       <div className="flex-1">
         {rootFolders.length === 0 ? (
-          <p className="px-4 text-sm text-gray-500 italic">No virtual folders yet.</p>
+          <p className="px-4 text-sm text-gray-500 italic">No workspaces yet.</p>
         ) : (
           renderTree(rootFolders)
         )}

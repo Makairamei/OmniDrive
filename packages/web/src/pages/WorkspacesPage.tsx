@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import type { VirtualFolder, FileEntry, DriveFolder } from '../types';
-import { VirtualFolderSidebar } from '../components/virtual-folders/VirtualFolderSidebar';
+import type { WorkspaceFolder, FileEntry, DriveFolder } from '../types';
+import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
 import { FileGrid } from '../components/files/FileGrid';
 import { useToastStore } from '../stores/toastStore';
 import { FolderPlus, RefreshCw } from 'lucide-react';
@@ -9,11 +9,11 @@ import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStor
 import { useUIStore } from '../stores/useUIStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
 
-export function VirtualFoldersPage() {
-  const [folders, setFolders] = useState<VirtualFolder[]>([]);
+export function WorkspacesPage() {
+  const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [files, setFiles] = useState<FileEntry[]>([]);
-  const [subfolders, setSubfolders] = useState<VirtualFolder[]>([]);
+  const [subfolders, setSubfolders] = useState<WorkspaceFolder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const addToast = useToastStore(state => state.addToast);
@@ -22,10 +22,10 @@ export function VirtualFoldersPage() {
 
   const fetchTree = async () => {
     try {
-      const res = await api.getVirtualFolderTree();
+      const res = await api.getWorkspaceTree();
       setFolders(res.folders);
     } catch {
-      addToast('error', 'Failed to load virtual folders');
+      addToast('error', 'Failed to load workspaces');
     }
   };
 
@@ -56,13 +56,13 @@ export function VirtualFoldersPage() {
   }, [activeFolderId]);
 
   const handleCreateFolder = async () => {
-    const name = prompt('New virtual folder name:');
+    const name = prompt('New workspace name:');
     if (name?.trim()) {
       try {
         await api.createFolder(name.trim(), activeFolderId || undefined);
         fetchTree();
       } catch {
-        addToast('error', 'Failed to create virtual folder');
+        addToast('error', 'Failed to create workspace');
       }
     }
   };
@@ -71,7 +71,7 @@ export function VirtualFoldersPage() {
     if (!activeFolderId) return;
     setIsSyncing(true);
     try {
-      await api.syncVirtualFolder(activeFolderId);
+      await api.syncWorkspace(activeFolderId);
       addToast('success', 'Sync started. Give it a moment to complete.');
       // Wait a bit then refresh
       setTimeout(() => fetchContents(activeFolderId), 2000);
@@ -85,14 +85,14 @@ export function VirtualFoldersPage() {
   const handleRemoveFile = async (id: string) => {
     try {
       await api.moveFile(id, null);
-      addToast('success', 'Removed from virtual folder');
+      addToast('success', 'Removed from workspace');
       if (activeFolderId) fetchContents(activeFolderId);
     } catch {
       addToast('error', 'Failed to remove file');
     }
   };
 
-  const handleViewInfo = (item: FileEntry | VirtualFolder | DriveFolder, type: 'file' | 'folder') => {
+  const handleViewInfo = (item: FileEntry | WorkspaceFolder | DriveFolder, type: 'file' | 'folder') => {
     clearSelection();
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
@@ -100,7 +100,7 @@ export function VirtualFoldersPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-white">
-      <VirtualFolderSidebar folders={folders} activeFolderId={activeFolderId} onSelect={setActiveFolderId} />
+      <WorkspaceSidebar folders={folders} activeFolderId={activeFolderId} onSelect={setActiveFolderId} />
       
       <div className="flex-1 flex flex-col h-full bg-gray-50 border-l border-gray-200">
         {selectedItems.length > 0 ? (
@@ -110,7 +110,7 @@ export function VirtualFoldersPage() {
         ) : (
           <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-800">
-              {activeFolderId ? folders.find(f => f.id === activeFolderId)?.name : 'Select a Virtual Folder'}
+              {activeFolderId ? folders.find(f => f.id === activeFolderId)?.name : 'Select a Workspace'}
             </h2>
             <div className="flex gap-2">
               <button onClick={handleCreateFolder} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
@@ -147,7 +147,7 @@ export function VirtualFoldersPage() {
             />
           ) : (
             <div className="text-center p-12 text-gray-500">
-              Select or create a Virtual Folder to get started.
+              Select or create a Workspace to get started.
             </div>
           )}
         </div>

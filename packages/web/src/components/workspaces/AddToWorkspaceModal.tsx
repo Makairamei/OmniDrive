@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import type { VirtualFolder, FileEntry } from '../../types';
+import type { WorkspaceFolder, FileEntry } from '../../types';
 import { X, Folder } from 'lucide-react';
 
 interface Props {
@@ -9,18 +9,18 @@ interface Props {
   onSuccess: () => void;
 }
 
-export function AddToVirtualFolderModal({ file, onClose, onSuccess }: Props) {
-  const [folders, setFolders] = useState<VirtualFolder[]>([]);
+export function AddToWorkspaceModal({ file, onClose, onSuccess }: Props) {
+  const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getVirtualFolderTree().then(res => setFolders(res.folders));
+    api.getWorkspaceTree().then(res => setFolders(res.folders));
   }, []);
 
   const handleAdd = async () => {
     if (!selectedId) return;
     try {
-      await api.addFilesToVirtualFolder(selectedId, [file.id]);
+      await api.addFilesToWorkspace(selectedId, [file.id]);
       onSuccess();
     } catch {
       // Error handled by parent
@@ -31,7 +31,7 @@ export function AddToVirtualFolderModal({ file, onClose, onSuccess }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Add to Virtual Folder</h2>
+          <h2 className="text-xl font-semibold">Add to Workspace</h2>
           <button onClick={onClose} className="text-gray-500 hover:bg-gray-100 p-1 rounded-full"><X size={20} /></button>
         </div>
         <div className="p-4 overflow-y-auto flex-1 space-y-2">

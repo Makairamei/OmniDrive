@@ -7,10 +7,10 @@ import { X, Trash2, Folder, Star } from 'lucide-react';
 export interface BulkActionBarProps {
   onActionComplete: () => void;
   onMoveRequested?: () => void;
-  onVirtualFolderRequested?: () => void;
+  onWorkspaceRequested?: () => void;
 }
 
-export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, onMoveRequested, onVirtualFolderRequested }) => {
+export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, onMoveRequested, onWorkspaceRequested }) => {
   const { selectedItems, clearSelection } = useSelectionStore();
   const addToast = useToastStore((s) => s.addToast);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -67,12 +67,12 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ onActionComplete, 
           <Folder size={16} /> Move
         </button>
         <button 
-          onClick={onVirtualFolderRequested} 
+          onClick={onWorkspaceRequested} 
           disabled={isProcessing || !allFiles} 
           className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm font-medium ${!allFiles ? 'opacity-50 cursor-not-allowed bg-blue-800' : 'hover:bg-blue-700'}`} 
-          title={!allFiles ? 'Can only add to Virtual Folder if all selected items are files' : 'Add to Virtual Folder'}
+          title={!allFiles ? 'Can only add to Workspace if all selected items are files' : 'Add to Workspace'}
         >
-          <Star size={16} /> Add to Virtual Folder
+          <Star size={16} /> Add to Workspace
         </button>
       </div>
     </div>

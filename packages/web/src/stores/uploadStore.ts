@@ -16,7 +16,7 @@ interface UploadState {
   addFiles: (files: File[]) => void;
   removeFile: (id: string) => void;
   clearQueue: () => void;
-  startUpload: (driveAccountId?: string, virtualFolderId?: string) => Promise<void>;
+  startUpload: (driveAccountId?: string, workspaceFolderId?: string) => Promise<void>;
   setShowModal: (show: boolean) => void;
 }
 
@@ -41,7 +41,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
   clearQueue: () => set({ queue: [], isUploading: false }),
 
-  startUpload: async (driveAccountId?: string, virtualFolderId?: string) => {
+  startUpload: async (driveAccountId?: string, workspaceFolderId?: string) => {
     set({ isUploading: true });
     const { queue } = get();
 
@@ -60,7 +60,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           mimeType: item.file.type || 'application/octet-stream',
           size: item.file.size,
           driveAccountId,
-          virtualFolderId,
+          workspaceFolderId,
         });
 
         // 2. Upload directly to Google Drive
@@ -78,7 +78,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         await api.confirmUpload({
           googleFileId: uploadResponse.id,
           driveAccountId: actualDriveId,
-          virtualFolderId,
+          workspaceFolderId,
         });
 
         set((state) => ({

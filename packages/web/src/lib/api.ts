@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import type { VirtualFolder } from '../types';
+import type { WorkspaceFolder } from '../types';
 
 class ApiError extends Error {
   constructor(
@@ -56,7 +56,7 @@ export const api = {
   getRootContents: () => request<import('../types').FolderContents>('/api/folders/'),
   getFolderContents: (id: string) => request<import('../types').FolderContents>(`/api/folders/${id}`),
   createFolder: (name: string, parentId?: string, icon?: string, color?: string) =>
-    request<{ folder: VirtualFolder }>('/api/folders', {
+    request<{ folder: WorkspaceFolder }>('/api/folders', {
       method: 'POST',
       body: JSON.stringify({ name, parentId, icon, color }),
     }),
@@ -67,32 +67,32 @@ export const api = {
     }),
   deleteFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
 
-  getVirtualFolderTree: () => request<{ folders: VirtualFolder[] }>('/api/folders/tree'),
-  addFilesToVirtualFolder: (id: string, fileIds: string[]) =>
+  getWorkspaceTree: () => request<{ folders: WorkspaceFolder[] }>('/api/folders/tree'),
+  addFilesToWorkspace: (id: string, fileIds: string[]) =>
     request<{ success: boolean }>(`/api/folders/${id}/files`, {
       method: 'POST',
       body: JSON.stringify({ fileIds }),
     }),
-  syncVirtualFolder: (id: string) =>
+  syncWorkspace: (id: string) =>
     request<{ success: boolean }>(`/api/folders/${id}/sync`, { method: 'POST' }),
 
   // Files
   searchFiles: (query: string) =>
     request<{ files: import('../types').FileEntry[]; query: string }>(`/api/files/search?q=${encodeURIComponent(query)}`),
-  initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; virtualFolderId?: string }) =>
+  initiateUpload: (data: { name: string; mimeType: string; size: number; driveAccountId?: string; workspaceFolderId?: string }) =>
     request<import('../types').UploadInitResponse>('/api/files/upload/init', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  confirmUpload: (data: { googleFileId: string; driveAccountId: string; virtualFolderId?: string }) =>
+  confirmUpload: (data: { googleFileId: string; driveAccountId: string; workspaceFolderId?: string }) =>
     request<{ file: import('../types').FileEntry }>('/api/files/upload/finalize', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  moveFile: (id: string, virtualFolderId: string | null) =>
+  moveFile: (id: string, workspaceFolderId: string | null) =>
     request<{ success: boolean }>(`/api/files/${id}/move`, {
       method: 'PATCH',
-      body: JSON.stringify({ virtualFolderId }),
+      body: JSON.stringify({ workspaceFolderId }),
     }),
   renameFile: (id: string, name: string) =>
     request<{ success: boolean }>(`/api/files/${id}`, {
@@ -115,7 +115,7 @@ export const api = {
     request<{ success: boolean }>(`/api/files/${id}/permanent`, { method: 'DELETE' }),
 
   // Starred Files
-  getStarred: () => request<{ files: import('../types').FileEntry[], folders: import('../types').VirtualFolder[] }>('/api/files/starred'),
+  getStarred: () => request<{ files: import('../types').FileEntry[], folders: import('../types').WorkspaceFolder[] }>('/api/files/starred'),
   starFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/star`, { method: 'POST' }),
   unstarFile: (id: string) => request<{ success: boolean }>(`/api/files/${id}/unstar`, { method: 'POST' }),
   starFolder: (id: string) => request<{ success: boolean }>(`/api/folders/${id}/star`, { method: 'POST' }),

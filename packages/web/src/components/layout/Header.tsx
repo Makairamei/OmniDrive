@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Search, LogOut } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
+import { useAuthStore } from '../../stores/authStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
 
 export const Header: React.FC = () => {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
@@ -68,7 +70,10 @@ export const Header: React.FC = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-gray-200" />
-            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50">
+            <DropdownMenuItem 
+              className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+              onClick={() => logout()}
+            >
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>

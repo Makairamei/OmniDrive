@@ -12,7 +12,7 @@ import { AutomationsPage } from './pages/AutomationsPage';
 import { SearchPage } from './pages/SearchPage';
 import { TrashPage } from './pages/TrashPage';
 import { StarredPage } from './pages/StarredPage';
-import { VirtualFoldersPage } from './pages/VirtualFoldersPage';
+import { WorkspacesPage } from './pages/WorkspacesPage';
 
 export const App = () => {
   return (
@@ -32,7 +32,7 @@ export const App = () => {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/files/:folderId" element={<FilesPage />} />
-          <Route path="/virtual-folders" element={<VirtualFoldersPage />} />
+          <Route path="/workspaces" element={<WorkspacesPage />} />
           <Route path="/automations" element={<AutomationsPage />} />
           <Route path="/settings/drives" element={<SettingsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

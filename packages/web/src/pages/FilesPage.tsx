@@ -9,7 +9,7 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
-import { AddToVirtualFolderModal } from '../components/virtual-folders/AddToVirtualFolderModal';
+import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 import { useSharedStore } from '../stores/sharedStore';
@@ -18,7 +18,7 @@ import { api } from '../lib/api';
 import { useUIStore } from '../stores/useUIStore';
 import { useSelectionStore, type SelectedItem } from '../stores/useSelectionStore';
 import { BulkActionBar } from '../components/layout/BulkActionBar';
-import type { FileEntry, DriveFolder, VirtualFolder } from '../types';
+import type { FileEntry, DriveFolder, WorkspaceFolder } from '../types';
 
 export function FilesPage() {
   const { folderId = 'root' } = useParams<{ folderId: string }>();
@@ -32,12 +32,12 @@ export function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveFileTarget, setMoveFileTarget] = useState<FileEntry | null>(null);
-  const [virtualFolderTarget, setVirtualFolderTarget] = useState<FileEntry | null>(null);
+  const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
   const { clearSelection, toggleSelection, selectedItems } = useSelectionStore();
 
-  const handleViewInfo = (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => {
+  const handleViewInfo = (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => {
     clearSelection();
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
@@ -103,7 +103,7 @@ export function FilesPage() {
         {selectedItems.length > 0 ? (
           <BulkActionBar 
             onActionComplete={() => refresh()} 
-            onVirtualFolderRequested={() => setVirtualFolderTarget(selectedItems[0].item as FileEntry)}
+            onWorkspaceRequested={() => setWorkspaceTarget(selectedItems[0].item as FileEntry)}
           />
         ) : (
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4 px-4 pt-4">
@@ -194,7 +194,7 @@ export function FilesPage() {
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
               onMoveDrive={setMoveFileTarget}
-              onAddToVirtualFolder={setVirtualFolderTarget}
+              onAddToWorkspace={setWorkspaceTarget}
               onViewInfo={handleViewInfo}
               isTargetShared={isTargetShared}
               errorDrives={errorDrives}
@@ -224,13 +224,13 @@ export function FilesPage() {
             onError={(msg) => addToast('error', msg)}
           />
         )}
-        {virtualFolderTarget && (
-          <AddToVirtualFolderModal
-            file={virtualFolderTarget}
-            onClose={() => setVirtualFolderTarget(null)}
+        {workspaceTarget && (
+          <AddToWorkspaceModal
+            file={workspaceTarget}
+            onClose={() => setWorkspaceTarget(null)}
             onSuccess={() => {
-              setVirtualFolderTarget(null);
-              addToast('success', 'Added to virtual folder');
+              setWorkspaceTarget(null);
+              addToast('success', 'Added to workspace');
               refresh();
             }}
           />

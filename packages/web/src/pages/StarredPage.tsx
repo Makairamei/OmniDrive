@@ -3,14 +3,14 @@ import { useDriveStore } from '../stores/driveStore';
 import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { api } from '../lib/api';
-import type { FileEntry, VirtualFolder } from '../types';
+import type { FileEntry, WorkspaceFolder } from '../types';
 
 export function StarredPage() {
   const { drives, fetchDrives } = useDriveStore();
   const { addToast } = useToastStore();
   
   const [files, setFiles] = useState<FileEntry[]>([]);
-  const [folders, setFolders] = useState<VirtualFolder[]>([]);
+  const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchStarred = useCallback(async () => {

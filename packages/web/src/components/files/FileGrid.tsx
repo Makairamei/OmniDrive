@@ -1,5 +1,5 @@
 import React from 'react';
-import type { FileEntry, DriveFolder, VirtualFolder } from '../../types';
+import type { FileEntry, DriveFolder, WorkspaceFolder } from '../../types';
 import { getFileIcon, formatFileSize, formatRelativeTime, getDriveColor } from '../../lib/utils';
 import { Folder, Download, Trash2, Pencil, ExternalLink, Share2, RefreshCw, Eye, Star, Info } from 'lucide-react';
 import {
@@ -21,7 +21,7 @@ const ItemContextMenuContent: React.FC<{
   id?: string;
   name?: string;
   native?: boolean;
-  item?: FileEntry | DriveFolder | VirtualFolder;
+  item?: FileEntry | DriveFolder | WorkspaceFolder;
   isTrashView?: boolean;
 
   isStarred?: boolean;
@@ -33,8 +33,8 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFile?: (id: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
-  onAddToVirtualFolder?: (item: FileEntry) => void;
-  onViewInfo?: (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => void;
+  onAddToWorkspace?: (item: FileEntry) => void;
+  onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
 }> = ({
   type,
   id,
@@ -52,7 +52,7 @@ const ItemContextMenuContent: React.FC<{
   onDeleteFile,
   onRestore,
   onPermanentDelete,
-  onAddToVirtualFolder,
+  onAddToWorkspace,
   onViewInfo,
 }) => {
   const file = type === 'file' ? (item as FileEntry) : undefined;
@@ -108,9 +108,9 @@ const ItemContextMenuContent: React.FC<{
             <Share2 className="mr-2 h-4 w-4" /> Share
           </ContextMenuItem>
         )}
-        {type === 'file' && file && onAddToVirtualFolder && (
-          <ContextMenuItem onClick={() => onAddToVirtualFolder(file)}>
-            <Folder className="mr-2 h-4 w-4" /> Add to Virtual Folder
+        {type === 'file' && file && onAddToWorkspace && (
+          <ContextMenuItem onClick={() => onAddToWorkspace(file)}>
+            <Folder className="mr-2 h-4 w-4" /> Add to Workspace
           </ContextMenuItem>
         )}
         {type === 'file' && onRenameFile && id && name && (
@@ -142,7 +142,7 @@ const ItemContextMenuContent: React.FC<{
 
 export interface FileGridProps {
   files: FileEntry[];
-  subfolders: (DriveFolder | VirtualFolder)[];
+  subfolders: (DriveFolder | WorkspaceFolder)[];
   getDriveInfo: (driveAccountId?: string) => { drive: any, index: number };
   onNavigateFolder?: (folderId: string, driveId: string) => void;
   onToggleStar?: (id: string, type: 'file' | 'folder', currentStarStatus: boolean) => void;
@@ -158,8 +158,8 @@ export interface FileGridProps {
   isTrashView?: boolean;
   onRestore?: (fileId: string) => void;
   onPermanentDelete?: (fileId: string) => void;
-  onAddToVirtualFolder?: (item: FileEntry) => void;
-  onViewInfo?: (item: FileEntry | DriveFolder | VirtualFolder, type: 'file' | 'folder') => void;
+  onAddToWorkspace?: (item: FileEntry) => void;
+  onViewInfo?: (item: FileEntry | DriveFolder | WorkspaceFolder, type: 'file' | 'folder') => void;
 }
 
 export const FileGrid: React.FC<FileGridProps> = ({
@@ -179,7 +179,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   isTrashView,
   onRestore,
   onPermanentDelete,
-  onAddToVirtualFolder,
+  onAddToWorkspace,
   onViewInfo,
 }) => {
   const storeViewMode = useUIStore((s) => s.viewMode);
@@ -296,7 +296,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onShare={onShare}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
-                onAddToVirtualFolder={onAddToVirtualFolder}
+                onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
               />
             </ContextMenu>
@@ -376,7 +376,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onDeleteFile={onDeleteFile}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
-                onAddToVirtualFolder={onAddToVirtualFolder}
+                onAddToWorkspace={onAddToWorkspace}
                 onViewInfo={onViewInfo}
               />
             </ContextMenu>
@@ -453,7 +453,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onShare={onShare}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}
-              onAddToVirtualFolder={onAddToVirtualFolder}
+              onAddToWorkspace={onAddToWorkspace}
               onViewInfo={onViewInfo}
             />
           </ContextMenu>

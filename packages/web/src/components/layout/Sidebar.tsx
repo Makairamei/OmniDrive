@@ -67,9 +67,9 @@ export const Sidebar: React.FC = () => {
           <Monitor size={20} />
           <span>Computers</span>
         </div>
-        <NavLink to="/virtual-folders" className={navLinkClass}>
+        <NavLink to="/workspaces" className={navLinkClass}>
           <FolderTree size={20} />
-          <span>Virtual Folders</span>
+          <span>Workspaces</span>
         </NavLink>
         <NavLink to="/trash" className={navLinkClass}>
           <Trash2 size={20} />
