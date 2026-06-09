@@ -7,6 +7,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -14,7 +15,7 @@ export function LoginPage() {
     setErrorMsg('');
     try {
       if (isRegister) {
-        await api.register({ username, password, email });
+        await api.register({ username, password, email, invitation_code: invitationCode });
       } else {
         await api.login({ username, password });
       }
@@ -51,10 +52,16 @@ export function LoginPage() {
             </div>
             
             {isRegister && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email (Optional)</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500" />
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email (Optional)</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Invitation Code (Required)</label>
+                  <input type="text" required value={invitationCode} onChange={e => setInvitationCode(e.target.value)} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </>
             )}
 
             <div>
