@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { AppContext } from '../types/env';
 import { authGuard } from '../middleware/auth-guard';
 import { generateId } from '../lib/id';
+import { getWorkspaceRole, hasPermission } from '../middleware/rbac';
+import { AuditService } from '../services/audit.service';
 
 export const workspacesRouter = new Hono<AppContext>({ strict: false });
 
@@ -56,14 +58,14 @@ workspacesRouter.post('/:id/members', async (c) => {
   const userId = c.get('userId');
   const db = c.env.DB;
   const workspaceId = c.req.param('id');
-  const { email } = await c.req.json<{ email?: string }>();
+  const { email, role = 'viewer' } = await c.req.json<{ email?: string, role?: string }>();
 
   if (!email) {
     return c.json({ error: 'Email is required' }, 400);
   }
 
-  const member = await db.prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?').bind(workspaceId, userId).first<{ role: string }>();
-  if (!member || member.role !== 'owner') {
+  const currentUserRole = await getWorkspaceRole(db, workspaceId, userId);
+  if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
@@ -74,7 +76,17 @@ workspacesRouter.post('/:id/members', async (c) => {
 
   const memberId = generateId();
   try {
-    await db.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)').bind(memberId, workspaceId, targetUser.id, 'member').run();
+    await db.prepare('INSERT INTO workspace_members (id, workspace_id, user_id, role) VALUES (?, ?, ?, ?)').bind(memberId, workspaceId, targetUser.id, role).run();
+    
+    const auditService = new AuditService(db);
+    await auditService.logEvent({
+      workspaceId,
+      actorId: userId,
+      actionType: 'member.invite',
+      resourceId: targetUser.id,
+      resourceName: email,
+      metadata: { role }
+    });
   } catch (e: any) {
     if (e.message.includes('UNIQUE constraint failed')) {
       return c.json({ error: 'User is already a member' }, 409);
@@ -95,12 +107,38 @@ workspacesRouter.delete('/:id/members/:targetUserId', async (c) => {
     return c.json({ error: 'Cannot remove yourself from the workspace' }, 400);
   }
 
-  const member = await db.prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?').bind(workspaceId, userId).first<{ role: string }>();
-  if (!member || member.role !== 'owner') {
+  const currentUserRole = await getWorkspaceRole(db, workspaceId, userId);
+  if (!currentUserRole || !hasPermission(currentUserRole, 'manager')) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
   await db.prepare('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?').bind(workspaceId, targetUserId).run();
 
+  const auditService = new AuditService(db);
+  await auditService.logEvent({
+    workspaceId,
+    actorId: userId,
+    actionType: 'member.remove',
+    resourceId: targetUserId,
+    metadata: { targetUserId }
+  });
+
   return c.json({ success: true });
+});
+
+workspacesRouter.get('/:id/audit-logs', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+  const workspaceId = c.req.param('id');
+
+  const role = await getWorkspaceRole(db, workspaceId, userId);
+  if (!role || (role !== 'owner' && role !== 'manager' && role !== 'auditor')) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  const { results } = await db.prepare(
+    'SELECT a.*, u.email as actor_email FROM audit_logs a JOIN users u ON a.actor_id = u.id WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100'
+  ).bind(workspaceId).all();
+
+  return c.json({ logs: results });
 });
