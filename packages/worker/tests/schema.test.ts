@@ -10,5 +10,7 @@ describe('Database Schema', () => {
     expect(schema).toContain('CREATE TABLE IF NOT EXISTS workspace_folders');
     expect(schema).not.toContain('CREATE TABLE IF NOT EXISTS virtual_folders');
     expect(schema).toContain('workspace_id');
+    expect(schema).toContain('is_super_admin');
+    expect(schema).toContain('CREATE TABLE IF NOT EXISTS invitation_codes');
   });
 });
