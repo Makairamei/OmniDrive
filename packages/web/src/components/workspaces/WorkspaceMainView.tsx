@@ -4,6 +4,7 @@ import type { WorkspaceFolder, BreadcrumbItem } from '../../types';
 import { WorkspaceFilesTab } from './WorkspaceFilesTab';
 import { WorkspaceMembersTab } from './WorkspaceMembersTab';
 import { WorkspaceSettingsTab } from './WorkspaceSettingsTab';
+import { WorkspaceAuditTab } from './WorkspaceAuditTab';
 
 interface WorkspaceMainViewProps {
   activeFolder: WorkspaceFolder | null;
@@ -18,7 +19,7 @@ interface WorkspaceMainViewProps {
 export function WorkspaceMainView({ 
   activeFolder, path, onCreateFolder, onCreateRootFolder, onSync, isSyncing, fileTabProps 
 }: WorkspaceMainViewProps) {
-  const [activeTab, setActiveTab] = useState<'files' | 'members' | 'settings'>('files');
+  const [activeTab, setActiveTab] = useState<'files' | 'members' | 'settings' | 'audit'>('files');
 
   if (!activeFolder) {
     return (
@@ -60,7 +61,7 @@ export function WorkspaceMainView({
 
         {/* Tabs */}
         <div className="flex gap-6 mt-4">
-          {(['files', 'members', 'settings'] as const).map(tab => (
+          {(['files', 'members', 'settings', 'audit'] as const).map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -81,6 +82,7 @@ export function WorkspaceMainView({
         {activeTab === 'files' && <WorkspaceFilesTab {...fileTabProps} />}
         {activeTab === 'members' && <WorkspaceMembersTab />}
         {activeTab === 'settings' && <WorkspaceSettingsTab />}
+        {activeTab === 'audit' && <WorkspaceAuditTab workspaceId={activeFolder.id} />}
       </div>
     </div>
   );
