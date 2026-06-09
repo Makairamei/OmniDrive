@@ -17,13 +17,14 @@ Omnidrive lets you connect multiple Google Drive accounts and manage all your fi
 ## Features
 
 - **🔗 Multi-Drive Accounts** — Connect multiple Google Drive accounts via OAuth or Service Account JSON keys
+- **🏢 Enterprise Workspaces** — Team workspaces replacing virtual folders, with RBAC, Quotas, Data Retention Policies, and Audit Logging
 - **📁 Unified File Browsing** — Browse files across all connected drives in a single merged view
-- **🗂️ Virtual Folders** — Create your own folder structure to organize files across different drives
-- **⬆️ Smart Upload** — Drag-and-drop file upload with automatic drive selection (picks the drive with the most free space)
+- **🔍 Global Search & Metadata** — Unified global search with metadata filtering, custom file metadata properties, and visual badges
+- **⬆️ Smart Upload & Bulk Actions** — Drag-and-drop upload, automatic drive selection, and bulk operations (Move, Delete)
 - **🔒 Shared Links** — Share files with password protection, expiration dates, and download limits
 - **⚡ Automation Rules** — Auto-move or auto-delete files based on name or extension patterns
 - **🔄 Real-Time Sync** — Automatic sync via Google Drive Changes API (cron every 30 minutes)
-- **🌙 Dark Mode** — Modern dark theme UI with responsive design
+- **🌙 Dark Mode** — Modern dark theme UI with Notion-style hierarchical workspace sidebar
 
 ## Tech Stack
 

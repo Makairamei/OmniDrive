@@ -17,13 +17,14 @@ Omnidrive memungkinkan kamu menghubungkan beberapa akun Google Drive dan mengelo
 ## Fitur
 
 - **🔗 Multi-Akun Drive** — Hubungkan beberapa akun Google Drive via OAuth atau Service Account JSON
+- **🏢 Enterprise Workspaces** — Workspace tim menggantikan folder virtual, dengan RBAC, Kuota, Kebijakan Retensi Data, dan Audit Logging
 - **📁 Browsing File Terpadu** — Jelajahi file dari semua drive yang terhubung dalam satu tampilan gabungan
-- **🗂️ Folder Virtual** — Buat struktur folder sendiri untuk mengorganisir file lintas drive
-- **⬆️ Upload Cerdas** — Drag-and-drop upload dengan pemilihan drive otomatis (pilih drive dengan ruang kosong terbanyak)
+- **🔍 Pencarian Global & Metadata** — Pencarian global terpadu dengan penyaringan metadata, properti metadata file kustom, dan lencana visual
+- **⬆️ Upload Cerdas & Aksi Massal** — Drag-and-drop upload, pemilihan drive otomatis, dan operasi massal (Pindah, Hapus)
 - **🔒 Shared Links** — Bagikan file dengan proteksi password, tanggal kadaluarsa, dan batas download
 - **⚡ Aturan Automasi** — Pindahkan atau hapus file otomatis berdasarkan pola nama atau ekstensi
 - **🔄 Sinkronisasi Real-Time** — Sinkronisasi otomatis via Google Drive Changes API (cron setiap 30 menit)
-- **🌙 Mode Gelap** — UI tema gelap modern dengan desain responsif
+- **🌙 Mode Gelap** — UI tema gelap modern dengan sidebar workspace hierarkis ala Notion
 
 ## Tech Stack
 

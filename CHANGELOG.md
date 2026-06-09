@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-06-09
+
+### Added
+
+- **Enterprise Workspace:**
+  - Team Workspaces with Role-Based Access Control (RBAC)
+  - Workspace Quotas and Data Retention Policies
+  - Automated cron jobs for data retention and audit log cleanup
+  - Comprehensive Audit Logging for workspace actions
+  - Notion-style hierarchical workspace sidebar and tabbed interface
+- **Search & Metadata (Phase 3):**
+  - Unified Global Search with metadata filtering
+  - Custom file metadata properties and editor
+  - Visual metadata badges in the File Grid
+- **Bulk Actions:**
+  - Checkboxes for multiple file selection in Grid and List views
+  - Bulk Move, Delete, and Add to Workspace operations
+
+### Changed
+
+- Replaced Virtual Folders with the new Enterprise Workspace system in the frontend UI
+
 ## [0.1.0] - 2026-06-08
 
 ### Added
