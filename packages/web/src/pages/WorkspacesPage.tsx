@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../lib/api';
 import type { WorkspaceFolder, FileEntry, DriveFolder, BreadcrumbItem } from '../types';
 import { WorkspaceSidebar } from '../components/workspaces/WorkspaceSidebar';
@@ -17,16 +17,16 @@ export function WorkspacesPage() {
   const { clearSelection, toggleSelection } = useSelectionStore();
   const setIsInfoPanelOpen = useUIStore(s => s.setIsInfoPanelOpen);
 
-  const fetchTree = async () => {
+  const fetchTree = useCallback(async () => {
     try {
       const res = await api.getWorkspaceTree();
       setFolders(res.folders);
     } catch {
       addToast('error', 'Failed to load workspaces');
     }
-  };
+  }, [addToast]);
 
-  const fetchContents = async (folderId: string) => {
+  const fetchContents = useCallback(async (folderId: string) => {
     try {
       const res = await api.getFolderContents(folderId);
       setFiles(res.files);
@@ -34,23 +34,32 @@ export function WorkspacesPage() {
     } catch {
       addToast('error', 'Failed to load folder contents');
     }
-  };
-
-  useEffect(() => { fetchTree(); }, []);
+  }, [addToast]);
 
   useEffect(() => {
-    if (activeFolderId) fetchContents(activeFolderId);
-    else { setFiles([]); setSubfolders([]); }
+    fetchTree();
+  }, [fetchTree]);
+
+  useEffect(() => {
+    if (activeFolderId) {
+      fetchContents(activeFolderId);
+    } else {
+      setFiles([]);
+      setSubfolders([]);
+    }
     clearSelection();
-  }, [activeFolderId, clearSelection]);
+  }, [activeFolderId, clearSelection, fetchContents]);
 
   const handleCreateFolder = async (parentId?: string) => {
-    const name = prompt('New workspace name:');
+    const promptMessage = parentId ? 'New subfolder name:' : 'New workspace name:';
+    const name = prompt(promptMessage);
     if (name?.trim()) {
       try {
         await api.createFolder(name.trim(), parentId || activeFolderId || undefined);
         fetchTree();
-      } catch { addToast('error', 'Failed to create workspace'); }
+      } catch {
+        addToast('error', 'Failed to create workspace');
+      }
     }
   };
 
@@ -62,7 +71,9 @@ export function WorkspacesPage() {
       try {
         await api.updateFolder(id, { name: name.trim() });
         fetchTree();
-      } catch { addToast('error', 'Failed to rename workspace'); }
+      } catch {
+        addToast('error', 'Failed to rename workspace');
+      }
     }
   };
 
@@ -70,9 +81,13 @@ export function WorkspacesPage() {
     if (confirm('Are you sure you want to delete this workspace?')) {
       try {
         await api.deleteFolder(id);
-        if (activeFolderId === id) setActiveFolderId(null);
+        if (activeFolderId === id) {
+          setActiveFolderId(null);
+        }
         fetchTree();
-      } catch { addToast('error', 'Failed to delete workspace'); }
+      } catch {
+        addToast('error', 'Failed to delete workspace');
+      }
     }
   };
 
@@ -83,14 +98,18 @@ export function WorkspacesPage() {
       await api.syncWorkspace(activeFolderId);
       addToast('success', 'Sync started.');
       setTimeout(() => fetchContents(activeFolderId), 2000);
-    } catch { addToast('error', 'Failed to start sync'); } finally { setIsSyncing(false); }
+    } catch {
+      addToast('error', 'Failed to start sync');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  const handleViewInfo = (item: FileEntry | WorkspaceFolder | DriveFolder, type: 'file' | 'folder') => {
+  const handleViewInfo = useCallback((item: FileEntry | WorkspaceFolder | DriveFolder, type: 'file' | 'folder') => {
     clearSelection();
     toggleSelection({ type, item } as SelectedItem);
     setIsInfoPanelOpen(true);
-  };
+  }, [clearSelection, toggleSelection, setIsInfoPanelOpen]);
 
   const activeFolder = useMemo(() => folders.find(f => f.id === activeFolderId) || null, [folders, activeFolderId]);
 
@@ -104,27 +123,60 @@ export function WorkspacesPage() {
     return path;
   }, [activeFolder, folders]);
 
-  const fileTabProps = {
-    files, subfolders,
-    getDriveInfo: () => ({ drive: null as any, index: 0 }),
+  const getDriveInfo = useCallback(() => ({ drive: null as any, index: 0 }), []);
+  const onPreviewFile = useCallback(() => {}, []);
+  const onShare = useCallback(() => {}, []);
+  const onRenameFile = useCallback(() => {}, []);
+  const onMoveDrive = useCallback(() => {}, []);
+  const isTargetShared = useCallback(() => false, []);
+  const errorDrives = useMemo(() => new Set<string>(), []);
+
+  const onDeleteFile = useCallback(async (id: string) => {
+    try {
+      await api.moveFile(id, null);
+      addToast('success', 'Removed');
+      if (activeFolderId) fetchContents(activeFolderId);
+    } catch {
+      addToast('error', 'Failed');
+    }
+  }, [activeFolderId, fetchContents, addToast]);
+
+  const fileTabProps = useMemo(() => ({
+    files,
+    subfolders,
+    getDriveInfo,
     onNavigateFolder: setActiveFolderId,
-    onPreviewFile: () => {}, onShare: () => {}, onRenameFile: () => {},
-    onDeleteFile: async (id: string) => {
-      try {
-        await api.moveFile(id, null);
-        addToast('success', 'Removed');
-        if (activeFolderId) fetchContents(activeFolderId);
-      } catch { addToast('error', 'Failed'); }
-    },
-    onMoveDrive: () => {}, isTargetShared: () => false, errorDrives: new Set<string>(),
+    onPreviewFile,
+    onShare,
+    onRenameFile,
+    onDeleteFile,
+    onMoveDrive,
+    isTargetShared,
+    errorDrives,
     onViewInfo: handleViewInfo
-  };
+  }), [
+    files,
+    subfolders,
+    getDriveInfo,
+    onPreviewFile,
+    onShare,
+    onRenameFile,
+    onDeleteFile,
+    onMoveDrive,
+    isTargetShared,
+    errorDrives,
+    handleViewInfo
+  ]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-white">
       <WorkspaceSidebar 
-        folders={folders} activeFolderId={activeFolderId} onSelect={setActiveFolderId} 
-        onRename={handleRename} onDelete={handleDelete} onNewSubfolder={handleCreateFolder}
+        folders={folders}
+        activeFolderId={activeFolderId}
+        onSelect={setActiveFolderId} 
+        onRename={handleRename}
+        onDelete={handleDelete}
+        onNewSubfolder={handleCreateFolder}
       />
       <WorkspaceMainView
         activeFolder={activeFolder}
@@ -137,3 +189,4 @@ export function WorkspacesPage() {
     </div>
   );
 }
+
