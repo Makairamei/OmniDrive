@@ -52,14 +52,14 @@ export function resetD1(execSync, flag) {
 export function resetKV(execSync, writeFileSync, unlinkSync, flag) {
   console.log(`\n=> Mereset KV Namespace (${flag})...`);
   console.log('Mendapatkan daftar keys...');
-  const keysOutput = execSync(`npx wrangler kv:key list --binding=KV ${flag}`).toString();
+  const keysOutput = execSync(`npx wrangler kv key list --binding=KV ${flag}`).toString();
   const keysData = JSON.parse(keysOutput);
   
   if (keysData.length > 0) {
     const keysToDelete = keysData.map(k => k.name);
     writeFileSync('temp_keys.json', JSON.stringify(keysToDelete));
     console.log(`Menghapus ${keysToDelete.length} keys...`);
-    execSync(`npx wrangler kv:bulk delete --binding=KV ${flag} temp_keys.json`, { stdio: 'inherit' });
+    execSync(`npx wrangler kv bulk delete --binding=KV ${flag} temp_keys.json`, { stdio: 'inherit' });
     unlinkSync('temp_keys.json');
   } else {
     console.log('KV Namespace sudah kosong.');
