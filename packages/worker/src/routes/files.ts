@@ -379,61 +379,79 @@ filesRouter.post('/upload/init', async (c) => {
   if (!tokenJson) throw new AppError(401, 'Drive token missing');
   const tokens = JSON.parse(tokenJson);
 
-  // 4. Create resumable upload session in Google Drive
-  const driveService = new DriveService(c.env, targetDrive.id, tokens);
+  // 4. Create upload session (Google resumable upload URL or Telegram Helper endpoint)
+  const driveService = new DriveService(c.env, targetDrive.id, tokens, targetDrive.type, targetDrive.rootFolderId);
   
-  // Note: we place it in root or a specific Omnidrive hidden folder inside Google Drive.
-  // For simplicity, we just put it in root of that specific Drive.
   const uploadUrl = await driveService.createResumableUploadSession({
     name,
     mimeType,
   });
 
-  // 5. Return the URL so the client can stream bytes directly to Google
   return c.json({
     uploadUrl,
     driveAccountId: targetDrive.id,
     googleFolderId: targetDrive.rootFolderId,
+    isTelegram: targetDrive.type === 'telegram',
+    telegramBotToken: targetDrive.type === 'telegram' ? tokens.accessToken : undefined,
+    telegramChannelId: targetDrive.type === 'telegram' ? targetDrive.rootFolderId : undefined,
   });
 });
 
 filesRouter.post('/upload/finalize', async (c) => {
   const userId = c.get('userId');
-  const { googleFileId, driveAccountId, virtualFolderId, workspaceFolderId, workspaceId } = await c.req.json();
+  const { googleFileId, telegramMessageId, telegramFileId, name, size, mimeType, driveAccountId, virtualFolderId, workspaceFolderId, workspaceId } = await c.req.json();
 
-  if (!googleFileId || !driveAccountId) {
-    throw new AppError(400, 'Missing required fields: googleFileId, driveAccountId');
+  if (!driveAccountId) {
+    throw new AppError(400, 'Missing required fields: driveAccountId');
   }
 
   const finalFolderId = workspaceFolderId || virtualFolderId;
+  const db = c.env.DB;
 
   // Verify drive belongs to user
-  const db = c.env.DB;
-  const drive = await db.prepare('SELECT id FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveAccountId, userId).first();
+  const drive = await db.prepare('SELECT id, type, root_folder_id FROM drive_accounts WHERE id = ? AND user_id = ?')
+    .bind(driveAccountId, userId).first<{ id: string; type: string; root_folder_id: string }>();
     
   if (!drive) {
     throw new AppError(404, 'Drive account not found or unauthorized');
   }
 
-  // Fetch file metadata from Google Drive
-  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-  const gFile = await driveService.getFile(driveAccountId, googleFileId);
+  let finalFileId = googleFileId;
+  let finalName = name;
+  let finalMimeType = mimeType;
+  let fileSize = size;
+  let tMsgId = telegramMessageId;
+  let tFileId = telegramFileId;
+  let tChannelId = drive.root_folder_id;
+
+  if (drive.type === 'telegram') {
+    // For telegram, browser uploads directly and returns message ID
+    finalFileId = String(tMsgId || googleFileId);
+  } else {
+    // Fetch file metadata from Google Drive
+    const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    const gFile = await driveService.getFile(driveAccountId, googleFileId);
+    finalFileId = gFile.id;
+    finalName = gFile.name;
+    finalMimeType = gFile.mimeType;
+    fileSize = parseInt(gFile.size || '0', 10);
+  }
 
   const id = generateId();
-  const fileSize = parseInt(gFile.size || '0', 10);
   
   await db.prepare(`
     INSERT INTO files (
       id, user_id, drive_account_id, workspace_id, workspace_folder_id, 
-      google_file_id, name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
+      google_file_id, telegram_message_id, telegram_channel_id, telegram_file_id,
+      name, mime_type, size, thumbnail_url, web_view_link, web_content_link,
       google_created_at, google_modified_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, userId, driveAccountId, workspaceId || null, finalFolderId || null,
-    gFile.id, gFile.name, gFile.mimeType, fileSize,
-    gFile.thumbnailLink || null, gFile.webViewLink || null, gFile.webContentLink || null,
-    gFile.createdTime, gFile.modifiedTime
+    finalFileId, tMsgId || null, tChannelId || null, tFileId || null,
+    finalName, finalMimeType, fileSize,
+    null, null, null,
+    new Date().toISOString(), new Date().toISOString()
   ).run();
 
   if (workspaceId && fileSize > 0) {
@@ -587,6 +605,17 @@ filesRouter.get('/:id/download', async (c) => {
     }
   } else if (file.user_id !== userId) {
     throw new AppError(403, 'Forbidden');
+  }
+
+  const drive = await db.prepare('SELECT type, root_folder_id FROM drive_accounts WHERE id = ?')
+    .bind(file.drive_account_id).first<{ type: string; root_folder_id: string }>();
+
+  if (drive && drive.type === 'telegram') {
+    const tokenJson = await c.env.KV.get(`tokens:${file.drive_account_id}`);
+    const tokens = JSON.parse(tokenJson || '{}');
+    const helperUrl = c.env.TELEGRAM_HELPER_URL || 'http://localhost:8899';
+    const downloadUrl = `${helperUrl}/download/${drive.root_folder_id}/${file.google_file_id}?auth=${encodeURIComponent(tokens.accessToken || '')}`;
+    return c.redirect(downloadUrl);
   }
 
   const driveService = new GoogleDriveService(

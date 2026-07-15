@@ -54,32 +54,64 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'uploading' as const } : q)),
         }));
 
-        // 1. Initiate upload — get resumable URL from Worker
-        const { uploadUrl, driveAccountId: actualDriveId } = await api.initiateUpload({
+        // 1. Initiate upload
+        const response = await api.initiateUpload({
           name: item.file.name,
           mimeType: item.file.type || 'application/octet-stream',
           size: item.file.size,
           driveAccountId,
           workspaceFolderId,
-        });
+        }) as any;
 
-        // 2. Upload directly to Google Drive
-        const uploadResponse = await uploadToGoogleDrive(uploadUrl, item.file, (progress) => {
+        let uploadResponse: any;
+
+        if (response.isTelegram) {
+          // 2. Upload to Telegram Helper
+          uploadResponse = await uploadToTelegram(
+            response.uploadUrl,
+            item.file,
+            response.telegramBotToken,
+            response.telegramChannelId,
+            (progress) => {
+              set((state) => ({
+                queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
+              }));
+            }
+          );
+
+          // 3. Confirm upload with Worker
           set((state) => ({
-            queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
+            queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'confirming' as const, progress: 100 } : q)),
           }));
-        });
 
-        // 3. Confirm upload with Worker
-        set((state) => ({
-          queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'confirming' as const, progress: 100 } : q)),
-        }));
+          await api.confirmUpload({
+            telegramMessageId: uploadResponse.messageId,
+            telegramFileId: uploadResponse.fileId,
+            name: item.file.name,
+            size: item.file.size,
+            mimeType: item.file.type || 'application/octet-stream',
+            driveAccountId: response.driveAccountId,
+            workspaceFolderId,
+          } as any);
+        } else {
+          // 2. Upload directly to Google Drive
+          uploadResponse = await uploadToGoogleDrive(response.uploadUrl, item.file, (progress) => {
+            set((state) => ({
+              queue: state.queue.map((q) => (q.id === item.id ? { ...q, progress } : q)),
+            }));
+          });
 
-        await api.confirmUpload({
-          googleFileId: uploadResponse.id,
-          driveAccountId: actualDriveId,
-          workspaceFolderId,
-        });
+          // 3. Confirm upload with Worker
+          set((state) => ({
+            queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'confirming' as const, progress: 100 } : q)),
+          }));
+
+          await api.confirmUpload({
+            googleFileId: uploadResponse.id,
+            driveAccountId: response.driveAccountId,
+            workspaceFolderId,
+          });
+        }
 
         set((state) => ({
           queue: state.queue.map((q) => (q.id === item.id ? { ...q, status: 'done' as const } : q)),
@@ -98,6 +130,40 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
   setShowModal: (show: boolean) => set({ showModal: show }),
 }));
+
+async function uploadToTelegram(
+  uploadUrl: string,
+  file: File,
+  botToken: string,
+  channelId: string,
+  onProgress: (percent: number) => void
+): Promise<{ messageId: number; fileId: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        reject(new Error(`Telegram upload failed: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Telegram upload network error')));
+
+    xhr.open('POST', uploadUrl);
+    xhr.setRequestHeader('Authorization', `Bearer ${botToken}`);
+    xhr.setRequestHeader('X-Channel-ID', channelId);
+    xhr.setRequestHeader('X-File-Name', file.name);
+    xhr.send(file);
+  });
+}
 
 async function uploadToGoogleDrive(
   uploadUrl: string,

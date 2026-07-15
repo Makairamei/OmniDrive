@@ -1,12 +1,26 @@
 import type { Env, OAuthTokens } from '../types/env';
 import { AppError } from '../middleware/error-handler';
+import { TelegramService } from './telegram';
 
 export class DriveService {
+  private telegramService?: TelegramService;
+
   constructor(
     protected env: Env,
     protected driveAccountId: string,
-    private tokens: OAuthTokens
-  ) {}
+    private tokens: OAuthTokens,
+    private driveType?: string,
+    private rootFolderId?: string
+  ) {
+    if (driveType === 'telegram') {
+      this.telegramService = new TelegramService(
+        env,
+        driveAccountId,
+        tokens.accessToken, // We store bot token or session in accessToken field in KV
+        rootFolderId || ''
+      );
+    }
+  }
 
   private async fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
     // In a real app, we'd check if accessToken is expired and use refreshToken here
@@ -25,6 +39,9 @@ export class DriveService {
   }
 
   async getQuota(): Promise<{ total: number; used: number }> {
+    if (this.telegramService) {
+      return this.telegramService.getQuota();
+    }
     const res = await this.fetchWithAuth('https://www.googleapis.com/drive/v3/about?fields=storageQuota');
     const data = await res.json() as any;
     return {
@@ -34,6 +51,9 @@ export class DriveService {
   }
 
   async createResumableUploadSession(metadata: { name: string; mimeType: string; parents?: string[] }): Promise<string> {
+    if (this.telegramService) {
+      return this.telegramService.getUploadUrl(metadata.name);
+    }
     const res = await this.fetchWithAuth('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
       method: 'POST',
       headers: {
@@ -51,6 +71,9 @@ export class DriveService {
   }
 
   async deleteFile(fileId: string): Promise<void> {
+    if (this.telegramService) {
+      return this.telegramService.deleteFile(fileId);
+    }
     await this.fetchWithAuth(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method: 'DELETE',
     });

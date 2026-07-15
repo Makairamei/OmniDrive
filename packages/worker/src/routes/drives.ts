@@ -85,6 +85,12 @@ drivesRouter.get('/', async (c) => {
   const drives = results.map(mapDriveRow);
 
   const drivesWithQuota = await Promise.all(drives.map(async (drive) => {
+    if (drive.type === 'telegram') {
+      const freeSpace = drive.totalQuota - drive.usedQuota;
+      const usagePercent = drive.totalQuota > 0 ? (drive.usedQuota / drive.totalQuota) * 100 : 0;
+      return { ...drive, freeSpace, usagePercent };
+    }
+
     const encryptedTokens = await c.env.KV.get(`tokens:${drive.id}`);
     if (!encryptedTokens) return { ...drive, freeSpace: 0, usagePercent: 0 };
     const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
@@ -328,6 +334,67 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     files: newFiles.results.map(r => mapFileRow(r as Record<string, unknown>)),
     breadcrumb,
   });
+});
+
+drivesRouter.post('/telegram', async (c) => {
+  const userId = c.get('userId');
+  const { displayName, botToken, channelId } = await c.req.json();
+
+  if (!displayName || !botToken || !channelId) {
+    throw new AppError(400, 'Missing required fields: displayName, botToken, channelId');
+  }
+
+  const db = c.env.DB;
+  const driveId = generateId();
+
+  // Save the drive account to the database
+  await db.prepare(`
+    INSERT INTO drive_accounts (
+      id, user_id, google_account_id, email, name, type, root_folder_id, total_quota, used_quota
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).bind(
+    driveId, userId, channelId, 'telegram@omnicloud.local', displayName, 'telegram', channelId, 100 * 1024 * 1024 * 1024 * 1024
+  ).run();
+
+  // Store the bot token in KV
+  const tokens = {
+    accessToken: botToken,
+    refreshToken: '',
+    expiresAt: Date.now() + 100 * 365 * 24 * 3600 * 1000,
+  };
+  await c.env.KV.put(`tokens:${driveId}`, JSON.stringify(tokens));
+
+  return c.json({ success: true, driveId });
+});
+
+drivesRouter.post('/service-account', async (c) => {
+  const userId = c.get('userId');
+  const { credentials, folderId } = await c.req.json();
+
+  if (!credentials || !folderId) {
+    throw new AppError(400, 'Missing required fields: credentials, folderId');
+  }
+
+  const creds = JSON.parse(credentials);
+  const db = c.env.DB;
+  const driveId = generateId();
+
+  await db.prepare(`
+    INSERT INTO drive_accounts (
+      id, user_id, google_account_id, email, name, type, root_folder_id, total_quota, used_quota
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).bind(
+    driveId, userId, creds.client_email, creds.client_email, 'Google Drive SA', 'service_account', folderId, 15 * 1024 * 1024 * 1024
+  ).run();
+
+  const tokens = {
+    accessToken: credentials, // We store the whole JSON credentials in the accessToken field
+    refreshToken: '',
+    expiresAt: Date.now() + 100 * 365 * 24 * 3600 * 1000,
+  };
+  await c.env.KV.put(`tokens:${driveId}`, JSON.stringify(tokens));
+
+  return c.json({ success: true, driveId });
 });
 
 drivesRouter.delete('/:id', async (c) => {

@@ -24,6 +24,11 @@ export function SettingsPage() {
   const [saCredentials, setSaCredentials] = useState('');
   const [saFolderId, setSaFolderId] = useState('');
 
+  const [showTgForm, setShowTgForm] = useState(false);
+  const [tgDisplayName, setTgDisplayName] = useState('');
+  const [tgBotToken, setTgBotToken] = useState('');
+  const [tgChannelId, setTgChannelId] = useState('');
+
   const [s3Keys, setS3Keys] = useState<any[]>([]);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loadingS3, setLoadingS3] = useState(false);
@@ -174,6 +179,21 @@ export function SettingsPage() {
     }
   };
 
+  const handleAddTelegram = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.addTelegram(tgDisplayName, tgBotToken, tgChannelId);
+      addToast('success', 'Telegram channel added successfully');
+      setTgDisplayName('');
+      setTgBotToken('');
+      setTgChannelId('');
+      setShowTgForm(false);
+      fetchDrives();
+    } catch {
+      addToast('error', 'Failed to add Telegram channel');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-3xl">
       <h1 className="text-2xl font-semibold text-gray-800">Settings</h1>
@@ -215,6 +235,12 @@ export function SettingsPage() {
             onClick={() => setShowSaForm(!showSaForm)}
           >
             <Key size={18} /> Add Service Account
+          </button>
+          <button
+            className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors font-medium text-sm"
+            onClick={() => setShowTgForm(!showTgForm)}
+          >
+            <Plus size={18} /> Add Telegram Channel
           </button>
         </div>
       </div>
@@ -271,6 +297,77 @@ export function SettingsPage() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
               >
                 Add Account
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Telegram Channel Form */}
+      {showTgForm && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-gray-800">Add Telegram Channel</h3>
+            <button
+              onClick={() => setShowTgForm(false)}
+              className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleAddTelegram} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={tgDisplayName}
+                onChange={(e) => setTgDisplayName(e.target.value)}
+                placeholder="e.g. My Telegram Backup Channel"
+                className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Telegram Bot Token
+              </label>
+              <input
+                type="password"
+                value={tgBotToken}
+                onChange={(e) => setTgBotToken(e.target.value)}
+                placeholder="Paste bot token from @BotFather..."
+                className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Telegram Channel/Group ID
+              </label>
+              <input
+                type="text"
+                value={tgChannelId}
+                onChange={(e) => setTgChannelId(e.target.value)}
+                placeholder="e.g. -100123456789"
+                className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                onClick={() => setShowTgForm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                Add Telegram Channel
               </button>
             </div>
           </form>

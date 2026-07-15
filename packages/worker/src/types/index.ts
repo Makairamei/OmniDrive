@@ -19,7 +19,7 @@ export interface DriveAccount {
   googleAccountId: string;
   email: string;
   name: string | null;
-  type: 'oauth' | 'service_account';
+  type: 'oauth' | 'service_account' | 'telegram';
   isPrimary: boolean;
   rootFolderId: string | null;
   totalQuota: number;
