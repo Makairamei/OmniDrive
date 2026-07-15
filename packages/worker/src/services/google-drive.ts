@@ -64,6 +64,29 @@ export class GoogleDriveService {
 
     const tokens: OAuthTokens = JSON.parse(tokensJson);
 
+    // Check if this is a Service Account key (the accessToken field stores the JSON credentials)
+    if (tokens.accessToken && tokens.accessToken.includes('"private_key"')) {
+      // Check if we have a cached active service account token
+      const cacheKey = `sa_token:${driveAccountId}`;
+      const cachedTokenJson = await this.kv.get(cacheKey);
+      if (cachedTokenJson) {
+        const cached = JSON.parse(cachedTokenJson);
+        if (cached.expiresAt > Date.now() + 60_000) {
+          return cached.token;
+        }
+      }
+
+      // Generate a new token using the Service Account JSON credentials
+      const token = await this.getServiceAccountToken(tokens.accessToken);
+      // Cache the token for 55 minutes (tokens expire in 1 hour)
+      await this.kv.put(cacheKey, JSON.stringify({
+        token,
+        expiresAt: Date.now() + 55 * 60 * 1000
+      }), { expirationTtl: 3300 });
+
+      return token;
+    }
+
     // Return cached token if not expired (with 60s buffer)
     if (tokens.expiresAt > Date.now() + 60_000) {
       return tokens.accessToken;
@@ -71,6 +94,92 @@ export class GoogleDriveService {
 
     // Refresh the token
     return this.refreshToken(driveAccountId, tokens.refreshToken);
+  }
+
+  private async getServiceAccountToken(credsJson: string): Promise<string> {
+    const creds = JSON.parse(credsJson);
+    const privateKeyPem = creds.private_key;
+    
+    // Parse PEM private key
+    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+    const pemFooter = "-----END PRIVATE KEY-----";
+    const pemContents = privateKeyPem.substring(
+      privateKeyPem.indexOf(pemHeader) + pemHeader.length,
+      privateKeyPem.indexOf(pemFooter)
+    ).replace(/\s/g, "");
+    
+    // Decode base64 to binary
+    const binaryString = atob(pemContents);
+    const len = binaryString.length;
+    const binaryDer = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      binaryDer[i] = binaryString.charCodeAt(i);
+    }
+    
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      binaryDer,
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        hash: { name: "SHA-256" },
+      },
+      false,
+      ["sign"]
+    );
+    
+    const header = {
+      alg: "RS256",
+      typ: "JWT",
+    };
+    
+    const now = Math.floor(Date.now() / 1000);
+    const claimSet = {
+      iss: creds.client_email,
+      scope: "https://www.googleapis.com/auth/drive",
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now,
+    };
+    
+    const base64UrlEncode = (str: string) => {
+      return btoa(str).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    };
+    
+    const encodedHeader = base64UrlEncode(JSON.stringify(header));
+    const encodedClaimSet = base64UrlEncode(JSON.stringify(claimSet));
+    
+    const signatureInput = `${encodedHeader}.${encodedClaimSet}`;
+    const encoder = new TextEncoder();
+    const signature = await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      encoder.encode(signatureInput)
+    );
+    
+    const base64UrlSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+      
+    const jwt = `${signatureInput}.${base64UrlSignature}`;
+    
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to exchange JWT for service account token: ${await response.text()}`);
+    }
+    
+    const data = await response.json() as any;
+    return data.access_token;
   }
 
   private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
