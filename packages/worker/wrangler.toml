@@ -16,7 +16,7 @@ binding = "KV"
 id = "36b29bf899db4a04994afd4b693c9551"
 
 [vars]
-FRONTEND_URL = "https://omnidrive.pages.dev"
+FRONTEND_URL = "https://omnidrive-web.pages.dev"
 
 [observability]
 enabled = false
