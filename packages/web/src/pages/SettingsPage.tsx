@@ -147,9 +147,26 @@ export function SettingsPage() {
 
   const handleSync = async (id: string) => {
     try {
-      await triggerSync(id);
+      addToast('info', 'Sync started...');
+      let isDone = false;
+      
+      while (!isDone) {
+        const res = await triggerSync(id);
+        if (res.isDone) {
+          isDone = true;
+        }
+        
+        await fetchDrives();
+        
+        // Check if sync was stopped by user (returns to 'idle')
+        const currentDrives = useDriveStore.getState().drives;
+        const drive = currentDrives.find(d => d.id === id);
+        if (drive && drive.syncStatus === 'idle') {
+          break;
+        }
+      }
+      
       addToast('success', 'Sync completed');
-      fetchDrives();
     } catch {
       addToast('error', 'Sync failed');
     }

@@ -194,12 +194,36 @@ drivesRouter.post('/:id/sync', async (c) => {
   const drive = mapDriveRow(row as Record<string, unknown>);
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
-  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
+  await syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
     waitUntil: (p) => c.executionCtx.waitUntil(p),
     workerUrl: c.env.WORKER_URL,
     tokenEncryptionKey: c.env.TOKEN_ENCRYPTION_KEY
-  }));
+  });
   
+  const checkDone = await c.env.DB
+    .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
+    .bind(driveId)
+    .first<{ count: number }>();
+    
+  const isDone = !checkDone || checkDone.count === 0;
+  
+  return c.json({ success: true, isDone });
+});
+
+drivesRouter.post('/:id/stop', async (c) => {
+  const userId = c.get('userId');
+  const driveId = c.req.param('id');
+
+  const row = userId === 'system'
+    ? await c.env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first()
+    : await c.env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
+
+  if (!row) return c.json({ error: 'Drive not found' }, 404);
+
+  await c.env.DB.prepare("UPDATE sync_state SET status = 'idle' WHERE drive_account_id = ?")
+    .bind(driveId)
+    .run();
+
   return c.json({ success: true });
 });
 

@@ -57,7 +57,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ displayName, botToken, channelId }),
     }),
-  triggerSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
+  triggerSync: (id: string) => request<{ success: boolean; isDone: boolean }>(`/api/drives/${id}/sync`, { method: 'POST' }),
   stopSync: (id: string) => request<{ success: boolean }>(`/api/drives/${id}/stop`, { method: 'POST' }),
   getDriveFolderContents: (driveId: string, googleFolderId: string) =>
     request<import('../types').DriveFolderContents>(`/api/drives/${driveId}/folders/${googleFolderId}`),

@@ -8,7 +8,7 @@ interface DriveState {
   isLoading: boolean;
   fetchDrives: () => Promise<void>;
   removeDrive: (id: string) => Promise<void>;
-  triggerSync: (id: string) => Promise<void>;
+  triggerSync: (id: string) => Promise<{ success: boolean; isDone: boolean }>;
   stopSync: (id: string) => Promise<void>;
 }
 
@@ -37,7 +37,7 @@ export const useDriveStore = create<DriveState>((set) => ({
   },
 
   triggerSync: async (id: string) => {
-    await api.triggerSync(id);
+    return await api.triggerSync(id);
   },
 
   stopSync: async (id: string) => {
