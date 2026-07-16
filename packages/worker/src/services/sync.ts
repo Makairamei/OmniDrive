@@ -33,7 +33,12 @@ export async function syncDriveAccount(
   drive: DriveAccount,
   db: D1Database,
   _kv: KVNamespace,
-  driveService: GoogleDriveService
+  driveService: GoogleDriveService,
+  ctx?: {
+    waitUntil: (promise: Promise<any>) => void;
+    workerUrl: string;
+    tokenEncryptionKey: string;
+  }
 ): Promise<void> {
   // Update status to syncing
   await db
@@ -86,6 +91,36 @@ export async function syncDriveAccount(
       await driveService.getQuota(drive.id);
     } catch {
       // Non-fatal
+    }
+
+    // Check again if we still have unsynced folders
+    const checkDoneFinal = await db
+      .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
+      .bind(drive.id)
+      .first<{ count: number }>();
+      
+    const isDoneFinal = !checkDoneFinal || checkDoneFinal.count === 0;
+
+    if (!isDoneFinal && ctx) {
+      console.log(`Initial sync not complete yet. Auto-triggering next batch...`);
+      // Update status to syncing again to keep the UI spinner active
+      await db
+        .prepare("UPDATE sync_state SET status = 'syncing' WHERE drive_account_id = ?")
+        .bind(drive.id)
+        .run();
+
+      const nextSyncPromise = fetch(`${ctx.workerUrl}/api/drives/${drive.id}/sync`, {
+        method: 'POST',
+        headers: {
+          'x-internal-secret': ctx.tokenEncryptionKey
+        }
+      }).then(r => {
+        console.log(`Auto-trigger sync status: ${r.status}`);
+      }).catch(err => {
+        console.error(`Auto-trigger sync failed:`, err);
+      });
+      
+      ctx.waitUntil(nextSyncPromise);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

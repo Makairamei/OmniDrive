@@ -195,9 +195,11 @@ drivesRouter.post('/:id/sync', async (c) => {
   const drive = mapDriveRow(row as Record<string, unknown>);
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
-  // Run the sync process in the background via c.executionCtx.waitUntil
-  // so the user doesn't have to wait for the entire sync to complete
-  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService));
+  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
+    waitUntil: (p) => c.executionCtx.waitUntil(p),
+    workerUrl: c.env.WORKER_URL,
+    tokenEncryptionKey: c.env.TOKEN_ENCRYPTION_KEY
+  }));
   
   return c.json({ success: true });
 });
