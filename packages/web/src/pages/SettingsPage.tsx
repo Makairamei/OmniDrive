@@ -174,6 +174,15 @@ export function SettingsPage() {
     }
   };
 
+  const handleAddGoogleDrive = async () => {
+    try {
+      const res = await api.connectGoogleDrive();
+      window.location.href = res.url;
+    } catch {
+      addToast('error', 'Failed to initialize Google Drive connection');
+    }
+  };
+
   const handleDisconnect = async (id: string) => {
     try {
       await removeDrive(id);
@@ -243,13 +252,12 @@ export function SettingsPage() {
       <div>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Drive</h2>
         <div className="flex gap-3 flex-wrap">
-          <a
-            href={`${import.meta.env.VITE_API_URL ?? ''}/api/drives/connect`}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm no-underline"
-            style={{ textDecoration: 'none' }}
+          <button
+            onClick={handleAddGoogleDrive}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm border-0 cursor-pointer"
           >
             <Plus size={18} /> Add Google Drive
-          </a>
+          </button>
           <button
             className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors font-medium text-sm"
             onClick={() => setShowSaForm(!showSaForm)}

@@ -70,7 +70,7 @@ drivesRouter.get('/connect', async (c) => {
   authUrl.searchParams.append('code_challenge', codeChallenge);
   authUrl.searchParams.append('code_challenge_method', 'S256');
 
-  return c.redirect(authUrl.toString());
+  return c.json({ url: authUrl.toString() });
 });
 
 drivesRouter.get('/', async (c) => {

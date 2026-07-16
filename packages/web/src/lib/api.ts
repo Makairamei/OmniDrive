@@ -46,6 +46,7 @@ export const api = {
   // Drives
   getDrives: () =>
     request<{ drives: import('../types').DriveAccount[]; aggregate: import('../types').AggregateQuota }>('/api/drives/'),
+  connectGoogleDrive: () => request<{ url: string }>('/api/drives/connect'),
   disconnectDrive: (id: string) => request<{ success: boolean }>(`/api/drives/${id}`, { method: 'DELETE' }),
   addServiceAccount: (credentials: string, folderId: string) =>
     request<{ success: boolean; driveId: string }>('/api/drives/service-account', {
