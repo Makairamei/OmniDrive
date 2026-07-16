@@ -18,6 +18,22 @@ function isGoogleNative(mimeType: string | null): boolean {
   return !!mimeType && mimeType.startsWith('application/vnd.google-apps.');
 }
 
+const FileThumbnail: React.FC<{ file: FileEntry; className?: string }> = ({ file, className }) => {
+  const [error, setError] = React.useState(false);
+  if (!file.thumbnailUrl || error) {
+    return <FileIcon mimeType={file.mimeType} />;
+  }
+  return (
+    <img
+      src={file.thumbnailUrl}
+      alt=""
+      className={className || "w-10 h-10 object-cover rounded bg-gray-50 border border-gray-200"}
+      onError={() => setError(true)}
+      referrerPolicy="no-referrer"
+    />
+  );
+};
+
 const ItemContextMenuContent: React.FC<{
   type: 'file' | 'folder';
   id?: string;
@@ -421,7 +437,9 @@ export const FileGrid: React.FC<FileGridProps> = ({
                         handleItemClick(e, { type: 'file', item: file });
                       }}
                     />
-                    <span className="text-xl flex-shrink-0"><FileIcon mimeType={file.mimeType} /></span>
+                    <span className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                      <FileThumbnail file={file} className="w-6 h-6 object-cover rounded bg-gray-50 border border-gray-100" />
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm text-gray-800 truncate" title={file.name}>{file.name}</span>
@@ -598,7 +616,9 @@ export const FileGrid: React.FC<FileGridProps> = ({
                   }}
                 />
                 <div className="flex justify-between items-start">
-                  <div className="text-3xl ml-5"><FileIcon mimeType={file.mimeType} /></div>
+                  <div className="w-12 h-12 flex items-center justify-center ml-5">
+                    <FileThumbnail file={file} className="w-12 h-12 object-cover rounded bg-gray-50 border border-gray-100" />
+                  </div>
                   <div className="flex gap-1 items-center">
                     {file.isStarred && <Star className="fill-yellow-400 text-yellow-400 flex-shrink-0" size={14} />}
                     {shared && <Share2 size={12} className="text-blue-400 flex-shrink-0" />}
