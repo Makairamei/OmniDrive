@@ -9,6 +9,7 @@ interface DriveState {
   fetchDrives: () => Promise<void>;
   removeDrive: (id: string) => Promise<void>;
   triggerSync: (id: string) => Promise<void>;
+  stopSync: (id: string) => Promise<void>;
 }
 
 const emptyAggregate: AggregateQuota = { totalQuota: 0, totalUsed: 0, totalFree: 0, driveCount: 0 };
@@ -37,5 +38,9 @@ export const useDriveStore = create<DriveState>((set) => ({
 
   triggerSync: async (id: string) => {
     await api.triggerSync(id);
+  },
+
+  stopSync: async (id: string) => {
+    await api.stopSync(id);
   },
 }));

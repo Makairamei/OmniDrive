@@ -8,10 +8,11 @@ interface DriveAccountCardProps {
   drive: DriveAccount;
   index: number;
   onSync: (id: string) => Promise<void>;
+  onStopSync?: (id: string) => Promise<void>;
   onDisconnect: (id: string) => Promise<void>;
 }
 
-export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAccountCardProps) {
+export function DriveAccountCard({ drive, index, onSync, onStopSync, onDisconnect }: DriveAccountCardProps) {
   const [syncing, setSyncing] = useState(false);
   const color = getDriveColor(index);
   
@@ -54,6 +55,14 @@ export function DriveAccountCard({ drive, index, onSync, onDisconnect }: DriveAc
             <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
             {isSyncing ? 'Syncing...' : 'Sync'}
           </button>
+          {isSyncing && onStopSync && (
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+              onClick={() => onStopSync(drive.id)}
+            >
+              Stop
+            </button>
+          )}
           {!drive.isPrimary && (
             <button
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"

@@ -18,7 +18,7 @@ const parseSqliteDate = (dateVal: any) => {
 };
 
 export function SettingsPage() {
-  const { drives, fetchDrives, removeDrive, triggerSync } = useDriveStore();
+  const { drives, fetchDrives, removeDrive, triggerSync, stopSync } = useDriveStore();
   const { addToast } = useToastStore();
   const [showSaForm, setShowSaForm] = useState(false);
   const [saCredentials, setSaCredentials] = useState('');
@@ -155,6 +155,16 @@ export function SettingsPage() {
     }
   };
 
+  const handleStopSync = async (id: string) => {
+    try {
+      await stopSync(id);
+      addToast('success', 'Sync stopped');
+      fetchDrives();
+    } catch {
+      addToast('error', 'Failed to stop sync');
+    }
+  };
+
   const handleDisconnect = async (id: string) => {
     try {
       await removeDrive(id);
@@ -208,6 +218,7 @@ export function SettingsPage() {
               drive={drive}
               index={i}
               onSync={handleSync}
+              onStopSync={handleStopSync}
               onDisconnect={handleDisconnect}
             />
           ))}
