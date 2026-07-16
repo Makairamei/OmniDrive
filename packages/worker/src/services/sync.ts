@@ -83,6 +83,32 @@ export async function syncDriveAccount(
   }
 }
 
+async function recursiveSyncFolder(
+  drive: DriveAccount,
+  db: D1Database,
+  driveService: GoogleDriveService,
+  folderId: string,
+  rootFolderId: string
+): Promise<void> {
+  try {
+    const { files, folders } = await driveService.listFolderContents(drive.id, folderId);
+    
+    for (const folder of folders) {
+      const parentId = resolveParentId(folder.parents, rootFolderId, true);
+      await upsertDriveFolder(db, drive, folder, parentId);
+      // Recursively sync subfolders
+      await recursiveSyncFolder(drive, db, driveService, folder.id, rootFolderId);
+    }
+    
+    for (const file of files) {
+      const parentId = resolveParentId(file.parents, rootFolderId, false);
+      await upsertFile(db, drive, file, parentId);
+    }
+  } catch (err) {
+    console.error(`Failed to recursively sync folder ${folderId}:`, err);
+  }
+}
+
 async function performInitialSync(
   drive: DriveAccount,
   db: D1Database,
@@ -91,7 +117,16 @@ async function performInitialSync(
 ): Promise<boolean> {
   console.log(`Initial sync for ${drive.email} — chunk processing`);
 
-  const rootFolderId = await driveService.getRootFolderId(drive.id);
+  const rootFolderId = drive.type === 'service_account' && drive.rootFolderId
+    ? drive.rootFolderId
+    : await driveService.getRootFolderId(drive.id);
+
+  if (drive.type === 'service_account' && drive.rootFolderId) {
+    // Perform recursive sync starting from the shared folder ID
+    await recursiveSyncFolder(drive, db, driveService, drive.rootFolderId, drive.rootFolderId);
+    return true;
+  }
+
   const iterator = driveService.iterateAllFilesAndFolders(drive.id, startPageToken);
 
   for await (const chunk of iterator) {
@@ -129,7 +164,9 @@ async function performIncrementalSync(
 ): Promise<string> {
   console.log(`Incremental sync for ${drive.email} from token ${pageToken}`);
 
-  const rootFolderId = await driveService.getRootFolderId(drive.id);
+  const rootFolderId = drive.type === 'service_account' && drive.rootFolderId
+    ? drive.rootFolderId
+    : await driveService.getRootFolderId(drive.id);
 
   let currentToken = pageToken;
   let hasMore = true;
