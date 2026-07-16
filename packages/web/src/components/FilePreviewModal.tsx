@@ -12,8 +12,12 @@ import { useState } from 'react';
 
 export function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
   const isImage = file.mimeType?.startsWith('image/');
+  const isVideo = file.mimeType?.startsWith('video/');
+  const isAudio = file.mimeType?.startsWith('audio/');
   const isGoogleDoc = file.mimeType?.startsWith('application/vnd.google-apps.');
   const [imageError, setImageError] = useState(false);
+
+  const downloadUrl = `${import.meta.env.VITE_API_URL || ''}/api/files/${file.id}/download`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -64,7 +68,32 @@ export function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
             </div>
           )}
 
-          {!isImage && file.thumbnailUrl && (
+          {isVideo && (
+            <div className="mb-6 rounded-xl overflow-hidden bg-gray-950 flex justify-center items-center p-1 border border-gray-800 shadow-inner">
+              <video
+                src={downloadUrl}
+                controls
+                crossOrigin="use-credentials"
+                className="w-full max-h-[380px] rounded-lg object-contain"
+              />
+            </div>
+          )}
+
+          {isAudio && (
+            <div className="mb-6 rounded-xl bg-gray-50 flex flex-col justify-center items-center p-6 border border-gray-200 shadow-sm">
+              <div className="text-blue-500 mb-4 scale-150">
+                <FileIcon mimeType={file.mimeType} />
+              </div>
+              <audio
+                src={downloadUrl}
+                controls
+                crossOrigin="use-credentials"
+                className="w-full mt-2"
+              />
+            </div>
+          )}
+
+          {!isImage && !isVideo && !isAudio && file.thumbnailUrl && (
             <div className="mb-6 flex justify-center p-8 bg-gray-50 border border-gray-200 rounded-xl min-h-[200px]">
               {!imageError ? (
                 <img 
