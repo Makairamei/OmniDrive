@@ -45,9 +45,19 @@ export class GoogleDriveService {
 
   // ─── Token Management ───
 
-  async getValidToken(driveAccountId: string): Promise<string> {
-    // Try tokens: prefix first (new), fallback to oauth: (legacy)
-    const raw = await this.kv.get(`tokens:${driveAccountId}`) ?? await this.kv.get(`oauth:${driveAccountId}`);
+  async getValidToken(driveAccountId: string, db?: D1Database): Promise<string> {
+    // Try D1 database first, fallback to KV to bypass daily KV limits
+    let raw: string | null = null;
+    if (db) {
+      const row = await db.prepare('SELECT encrypted_tokens FROM drive_accounts WHERE id = ?')
+        .bind(driveAccountId)
+        .first<{ encrypted_tokens: string }>();
+      raw = row?.encrypted_tokens ?? null;
+    }
+    if (!raw) {
+      raw = await this.kv.get(`tokens:${driveAccountId}`) ?? await this.kv.get(`oauth:${driveAccountId}`);
+    }
+
     if (!raw) {
       throw new Error(`No tokens found for drive ${driveAccountId}`);
     }
@@ -93,7 +103,7 @@ export class GoogleDriveService {
     }
 
     // Refresh the token
-    return this.refreshToken(driveAccountId, tokens.refreshToken);
+    return this.refreshToken(driveAccountId, tokens.refreshToken, db);
   }
 
   private async getServiceAccountToken(credsJson: string): Promise<string> {
@@ -182,7 +192,7 @@ export class GoogleDriveService {
     return data.access_token;
   }
 
-  private async refreshToken(driveAccountId: string, refreshToken: string): Promise<string> {
+  private async refreshToken(driveAccountId: string, refreshToken: string, db?: D1Database): Promise<string> {
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -201,7 +211,7 @@ export class GoogleDriveService {
 
     const data: { access_token: string; expires_in: number } = await response.json();
 
-    // Update KV with new access token (keep existing refresh token)
+    // Update D1 with new access token (keep existing refresh token)
     const newTokens = JSON.stringify({
       accessToken: data.access_token,
       refreshToken,
@@ -211,9 +221,21 @@ export class GoogleDriveService {
     if (this.encryptionKey) {
       const { encrypt } = await import('../lib/crypto');
       const encrypted = await encrypt(newTokens, this.encryptionKey);
-      await this.kv.put(`tokens:${driveAccountId}`, encrypted);
+      if (db) {
+        await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+          .bind(encrypted, driveAccountId)
+          .run();
+      } else {
+        await this.kv.put(`tokens:${driveAccountId}`, encrypted);
+      }
     } else {
-      await this.kv.put(`oauth:${driveAccountId}`, newTokens);
+      if (db) {
+        await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+          .bind(newTokens, driveAccountId)
+          .run();
+      } else {
+        await this.kv.put(`oauth:${driveAccountId}`, newTokens);
+      }
     }
 
     return data.access_token;

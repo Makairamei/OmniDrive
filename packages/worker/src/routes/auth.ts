@@ -139,9 +139,11 @@ authRouter.get('/callback', async (c) => {
     drive = { id: driveId };
   }
 
-  // Encrypt tokens before storing
+  // Encrypt tokens before storing in database instead of KV to avoid hitting daily KV write limits
   const encryptedTokens = await encrypt(JSON.stringify(tokens), env.TOKEN_ENCRYPTION_KEY);
-  await env.KV.put(`tokens:${drive.id}`, encryptedTokens);
+  await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+    .bind(encryptedTokens, drive.id)
+    .run();
 
   const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(drive.id).first();
   if (driveRow) {
