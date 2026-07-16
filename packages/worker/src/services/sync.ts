@@ -88,21 +88,62 @@ async function recursiveSyncFolder(
   db: D1Database,
   driveService: GoogleDriveService,
   folderId: string,
-  rootFolderId: string
+  rootFolderId: string,
+  statements: any[]
 ): Promise<void> {
   try {
     const { files, folders } = await driveService.listFolderContents(drive.id, folderId);
     
     for (const folder of folders) {
       const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      await upsertDriveFolder(db, drive, folder, parentId);
+      
+      const folderId = generateId();
+      statements.push(db.prepare(
+        `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
+         VALUES (?, ?, ?, ?, ?, 0)
+         ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
+           name = excluded.name,
+           google_parent_id = excluded.google_parent_id`
+      ).bind(folderId, drive.id, folder.id, parentId, folder.name));
+
       // Recursively sync subfolders
-      await recursiveSyncFolder(drive, db, driveService, folder.id, rootFolderId);
+      await recursiveSyncFolder(drive, db, driveService, folder.id, rootFolderId, statements);
     }
     
     for (const file of files) {
       const parentId = resolveParentId(file.parents, rootFolderId, false);
-      await upsertFile(db, drive, file, parentId);
+      
+      const fileId = generateId();
+      statements.push(db.prepare(
+        `INSERT INTO files
+           (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
+            thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
+           name = excluded.name,
+           mime_type = excluded.mime_type,
+           size = excluded.size,
+           thumbnail_url = excluded.thumbnail_url,
+           web_view_link = excluded.web_view_link,
+           web_content_link = excluded.web_content_link,
+           google_modified_at = excluded.google_modified_at,
+           google_parent_id = excluded.google_parent_id,
+           synced_at = excluded.synced_at`
+      ).bind(
+        fileId,
+        drive.userId,
+        drive.id,
+        file.id,
+        parentId,
+        file.name,
+        file.mimeType,
+        parseInt(file.size ?? '0', 10),
+        file.thumbnailLink ?? null,
+        file.webViewLink ?? null,
+        file.webContentLink ?? null,
+        file.createdTime,
+        file.modifiedTime
+      ));
     }
   } catch (err) {
     console.error(`Failed to recursively sync folder ${folderId}:`, err);
@@ -122,8 +163,15 @@ async function performInitialSync(
     : await driveService.getRootFolderId(drive.id);
 
   if (drive.type === 'service_account' && drive.rootFolderId) {
-    // Perform recursive sync starting from the shared folder ID
-    await recursiveSyncFolder(drive, db, driveService, drive.rootFolderId, drive.rootFolderId);
+    const statements: any[] = [];
+    await recursiveSyncFolder(drive, db, driveService, drive.rootFolderId, drive.rootFolderId, statements);
+    
+    // Execute all statements in batches of 50 to prevent timeouts and D1 query size limit
+    const chunkSize = 50;
+    for (let i = 0; i < statements.length; i += chunkSize) {
+      const chunk = statements.slice(i, i + chunkSize);
+      await db.batch(chunk);
+    }
     return true;
   }
 
