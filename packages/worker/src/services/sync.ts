@@ -426,13 +426,33 @@ export async function runScheduledSync(env: {
 
   const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
 
-  const rows = await env.DB.prepare("SELECT * FROM drive_accounts WHERE type = 'oauth'").all();
-  const driveAccounts = (rows.results ?? []).map(mapDriveRow);
+  // Find ALL drives that have unsynced folders (initial sync not complete)
+  const pendingRows = await env.DB.prepare(`
+    SELECT da.* FROM drive_accounts da
+    INNER JOIN (
+      SELECT drive_account_id FROM drive_folders
+      WHERE is_synced = 0
+      GROUP BY drive_account_id
+    ) pending ON da.id = pending.drive_account_id
+  `).all();
+  const pendingDrives = (pendingRows.results ?? []).map(mapDriveRow);
 
-  console.log(`Syncing ${driveAccounts.length} drive accounts`);
+  // Also find oauth drives for incremental sync
+  const oauthRows = await env.DB.prepare("SELECT * FROM drive_accounts WHERE type = 'oauth'").all();
+  const oauthDrives = (oauthRows.results ?? []).map(mapDriveRow);
+
+  // Merge: pending first, then oauth (deduped)
+  const seen = new Set<string>();
+  const allDrives = [...pendingDrives, ...oauthDrives].filter(d => {
+    if (seen.has(d.id)) return false;
+    seen.add(d.id);
+    return true;
+  });
+
+  console.log(`Cron sync: ${pendingDrives.length} drives with pending folders, ${oauthDrives.length} oauth drives`);
 
   await Promise.allSettled(
-    driveAccounts.map(async (drive) => {
+    allDrives.map(async (drive) => {
       if (activeSyncs.has(drive.id)) {
         console.log(`Skipping sync for ${drive.email} as it is already syncing.`);
         return;
