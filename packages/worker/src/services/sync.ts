@@ -80,11 +80,22 @@ export async function syncDriveAccount(
       changeToken = await performIncrementalSync(drive, db, changeToken, driveService);
     }
 
+    // Check if more folders still need processing BEFORE updating status
+    const checkRemaining = await db
+      .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
+      .bind(drive.id)
+      .first<{ count: number }>();
+    const stillHasPending = checkRemaining && checkRemaining.count > 0;
+
+    // Keep status 'syncing' if there are more folders to process (cron will pick it up)
+    // Only mark as 'idle' when everything is truly done
+    const nextStatus = stillHasPending ? 'syncing' : 'idle';
+
     await db
       .prepare(
-        "INSERT INTO sync_state (drive_account_id, status, last_synced_at, change_token, next_page_token) VALUES (?, 'idle', CURRENT_TIMESTAMP, ?, NULL) ON CONFLICT(drive_account_id) DO UPDATE SET status = 'idle', last_synced_at = CURRENT_TIMESTAMP, change_token = excluded.change_token, next_page_token = NULL"
+        `INSERT INTO sync_state (drive_account_id, status, last_synced_at, change_token, next_page_token) VALUES (?, ?, CURRENT_TIMESTAMP, ?, NULL) ON CONFLICT(drive_account_id) DO UPDATE SET status = ?, last_synced_at = CURRENT_TIMESTAMP, change_token = excluded.change_token, next_page_token = NULL`
       )
-      .bind(drive.id, changeToken)
+      .bind(drive.id, nextStatus, changeToken ?? null, nextStatus)
       .run();
 
     // Check again if we still have unsynced folders

@@ -134,6 +134,19 @@ export function SettingsPage() {
     fetchDrives();
   }, [fetchDrives]);
 
+  // Auto-poll every 3 seconds while any drive is syncing
+  // This means after F5 refresh, the spinner reappears if the cron is still processing
+  useEffect(() => {
+    const anySyncing = drives.some(d => d.syncStatus === 'syncing');
+    if (!anySyncing) return;
+
+    const interval = setInterval(() => {
+      fetchDrives();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [drives, fetchDrives]);
+
 
 
   const handleSync = async (id: string) => {
