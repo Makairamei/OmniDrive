@@ -139,23 +139,24 @@ export function SettingsPage() {
   const handleSync = async (id: string) => {
     try {
       addToast('info', 'Sync started...');
-      let isDone = false;
       
-      while (!isDone) {
-        const res = await triggerSync(id);
-        if (res.isDone) {
-          isDone = true;
-        }
-        
-        await fetchDrives();
-        
-        // Check if sync was stopped by user (returns to 'idle')
-        const currentDrives = useDriveStore.getState().drives;
-        const drive = currentDrives.find(d => d.id === id);
-        if (drive && drive.syncStatus === 'idle') {
-          break;
-        }
-      }
+      // Trigger the first batch - runs in background via waitUntil
+      await triggerSync(id);
+      await fetchDrives();
+      
+      // Poll every 5 seconds until syncStatus goes back to 'idle'
+      await new Promise<void>((resolve) => {
+        const poll = setInterval(async () => {
+          await fetchDrives();
+          const currentDrives = useDriveStore.getState().drives;
+          const drive = currentDrives.find(d => d.id === id);
+          
+          if (!drive || drive.syncStatus === 'idle' || drive.syncStatus === 'error') {
+            clearInterval(poll);
+            resolve();
+          }
+        }, 5000);
+      });
       
       addToast('success', 'Sync completed');
     } catch {

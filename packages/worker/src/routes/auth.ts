@@ -63,8 +63,11 @@ authRouter.post('/register', async (c) => {
   const sessionData: SessionData = { userId: id, username, email: email || null, name: name || username, avatarUrl: null, role: isSuperAdmin ? 'super_admin' : 'member', createdAt: Date.now() };
   const sessionId = generateId();
   
-  await c.env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), { expirationTtl: 60 * 60 * 24 * 7 });
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
+  const expiresAt = Date.now() + 60 * 60 * 24 * 7 * 1000; // 7 days
+  await db.prepare('INSERT INTO sessions (id, session_data, expires_at) VALUES (?, ?, ?)')
+    .bind(sessionId, JSON.stringify(sessionData), expiresAt)
+    .run();
+  const isSecure = c.env.WORKER_URL?.startsWith('https://') ?? false;
   setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: isSecure, httpOnly: true, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 60 * 24 * 7 });
 
   return c.json({ success: true, user: sessionData, isSuperAdmin: !!isSuperAdmin });
@@ -82,8 +85,11 @@ authRouter.post('/login', async (c) => {
   const sessionData: SessionData = { userId: user.id, username: user.username, email: user.email, name: user.name, avatarUrl: user.avatar_url, role: user.is_super_admin ? 'super_admin' : 'member', createdAt: Date.now() };
   const sessionId = generateId();
   
-  await c.env.KV.put(`session:${sessionId}`, JSON.stringify(sessionData), { expirationTtl: 60 * 60 * 24 * 7 });
-  const isSecure = c.env.WORKER_URL.startsWith('https://');
+  const expiresAt = Date.now() + 60 * 60 * 24 * 7 * 1000; // 7 days
+  await c.env.DB.prepare('INSERT INTO sessions (id, session_data, expires_at) VALUES (?, ?, ?)')
+    .bind(sessionId, JSON.stringify(sessionData), expiresAt)
+    .run();
+  const isSecure = c.env.WORKER_URL?.startsWith('https://') ?? false;
   setCookie(c, 'omnidrive_sid', sessionId, { path: '/', secure: isSecure, httpOnly: true, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 60 * 24 * 7 });
 
   return c.json({ success: true, user: sessionData });
@@ -115,7 +121,7 @@ authRouter.get('/google', async (c) => {
 
   // Store state + PKCE verifier in KV (10-min TTL)
   await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier }), { expirationTtl: 600 });
-  const isSecure = env.WORKER_URL.startsWith('https://');
+  const isSecure = env.WORKER_URL?.startsWith('https://') ?? false;
   setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
 
   authUrl.searchParams.append('state', state);
@@ -188,7 +194,7 @@ authRouter.get('/me', (c) => {
 authRouter.post('/logout', async (c) => {
   const sid = getCookie(c, 'omnidrive_sid');
   if (sid) {
-    await c.env.KV.delete(`session:${sid}`);
+    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
   }
   deleteCookie(c, 'omnidrive_sid', { path: '/', secure: true, sameSite: 'None' });
   return c.json({ success: true });

@@ -101,7 +101,15 @@ export async function syncDriveAccount(
       
     const isDoneFinal = !checkDoneFinal || checkDoneFinal.count === 0;
 
-    if (!isDoneFinal && ctx) {
+    // Check if the user manually stopped the sync (which changes status to 'idle')
+    const currentSyncState = await db
+      .prepare('SELECT status FROM sync_state WHERE drive_account_id = ?')
+      .bind(drive.id)
+      .first<{ status: string }>();
+
+    const isCancelled = currentSyncState?.status === 'idle';
+
+    if (!isDoneFinal && !isCancelled && ctx) {
       console.log(`Initial sync not complete yet. Auto-triggering next batch...`);
       // Update status to syncing again to keep the UI spinner active
       await db

@@ -19,16 +19,19 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
     throw new AppError(401, 'Not authenticated');
   }
 
-  const sessionJson = await c.env.KV.get(`session:${cookie}`);
-  if (!sessionJson) {
+  const sessionRow = await c.env.DB.prepare('SELECT session_data FROM sessions WHERE id = ? AND expires_at > ?')
+    .bind(cookie, Date.now())
+    .first<{ session_data: string }>();
+
+  if (!sessionRow) {
     throw new AppError(401, 'Session expired');
   }
 
-  const session: SessionData = JSON.parse(sessionJson);
+  const session: SessionData = JSON.parse(sessionRow.session_data);
 
   // Enforce absolute session lifetime
   if (session.createdAt && Date.now() - session.createdAt > MAX_SESSION_AGE) {
-    await c.env.KV.delete(`session:${cookie}`);
+    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(cookie).run();
     throw new AppError(401, 'Session expired');
   }
 
@@ -36,9 +39,10 @@ export const authGuard = createMiddleware<AppContext>(async (c, next) => {
   c.set('session', session);
 
   // Sliding window: extend session TTL on each valid request
-  await c.env.KV.put(`session:${cookie}`, sessionJson, {
-    expirationTtl: 60 * 60 * 24 * 7, // 7 days
-  });
+  const newExpiresAt = Date.now() + 60 * 60 * 24 * 7 * 1000; // 7 days
+  await c.env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?')
+    .bind(newExpiresAt, cookie)
+    .run();
 
   await next();
 });

@@ -194,12 +194,14 @@ drivesRouter.post('/:id/sync', async (c) => {
   const drive = mapDriveRow(row as Record<string, unknown>);
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
   
-  await syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
+  c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
     waitUntil: (p) => c.executionCtx.waitUntil(p),
     workerUrl: c.env.WORKER_URL,
     tokenEncryptionKey: c.env.TOKEN_ENCRYPTION_KEY
-  });
-  
+  }));
+
+  // Return immediately - the sync runs in background via waitUntil
+  // isDone check tells browser whether to continue looping
   const checkDone = await c.env.DB
     .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
     .bind(driveId)
