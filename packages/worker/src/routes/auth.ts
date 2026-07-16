@@ -8,7 +8,7 @@ import { generateId } from '../lib/id';
 import { authGuard } from '../middleware/auth-guard';
 import { validatePassword } from '../lib/validation';
 import { generatePKCE } from '../lib/pkce';
-import { encrypt } from '../lib/crypto';
+import { encrypt, decrypt } from '../lib/crypto';
 import { syncDriveAccount } from '../services/sync';
 import { GoogleDriveService } from '../services/google-drive';
 import { mapDriveRow } from '../types';
@@ -142,17 +142,17 @@ authRouter.get('/callback', async (c) => {
   }
   deleteCookie(c, 'oauth_state', { path: '/' });
 
-  // Retrieve PKCE verifier from KV
-  const stateDataJson = await c.env.KV.get(`oauth_state:${state}`);
-  if (!stateDataJson) throw new AppError(400, 'OAuth state expired');
-  const stateData = JSON.parse(stateDataJson);
-  await c.env.KV.delete(`oauth_state:${state}`);
+  // Retrieve PKCE verifier from encrypted cookie instead of KV to bypass daily KV limits
+  const encryptedVerifier = getCookie(c, 'oauth_verifier');
+  if (!encryptedVerifier) throw new AppError(400, 'OAuth state/verifier expired');
+  deleteCookie(c, 'oauth_verifier', { path: '/' });
 
   const env = c.env;
+  const codeVerifier = await decrypt(encryptedVerifier, env.TOKEN_ENCRYPTION_KEY);
   const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
   const authService = new AuthService(env);
 
-  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, stateData.codeVerifier);
+  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, codeVerifier);
   const googleUser = await authService.fetchUserInfo(tokens.accessToken);
 
   const targetUserId = c.get('userId');

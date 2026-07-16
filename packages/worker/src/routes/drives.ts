@@ -8,7 +8,7 @@ import { syncDriveAccount } from '../services/sync';
 import { mapDriveRow, mapDriveFolderRow, mapFileRow } from '../types';
 import { generateId } from '../lib/id';
 import type { BreadcrumbItem } from '../types';
-import { decryptOrPassthrough } from '../lib/crypto';
+import { decryptOrPassthrough, encrypt } from '../lib/crypto';
 import { generatePKCE } from '../lib/pkce';
 
 export async function buildDriveBreadcrumb(db: D1Database, driveId: string, googleFolderId: string): Promise<BreadcrumbItem[]> {
@@ -63,8 +63,12 @@ drivesRouter.get('/connect', async (c) => {
   const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  await env.KV.put(`oauth_state:${state}`, JSON.stringify({ codeVerifier }), { expirationTtl: 600 });
-  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: true, maxAge: 60 * 5 });
+  // Encrypt the code verifier and store it in a cookie instead of KV to bypass daily KV limits!
+  const encryptedVerifier = await encrypt(codeVerifier, env.TOKEN_ENCRYPTION_KEY);
+
+  const isSecure = env.WORKER_URL?.startsWith('https://') ?? false;
+  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
+  setCookie(c, 'oauth_verifier', encryptedVerifier, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
   
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
