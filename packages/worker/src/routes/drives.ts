@@ -60,15 +60,15 @@ drivesRouter.get('/connect', async (c) => {
   authUrl.searchParams.append('access_type', 'offline');
   authUrl.searchParams.append('prompt', 'select_account consent');
 
-  const state = crypto.randomUUID();
   const { codeVerifier, codeChallenge } = await generatePKCE();
 
-  // Encrypt the code verifier and store it in a cookie instead of KV to bypass daily KV limits!
-  const encryptedVerifier = await encrypt(codeVerifier, env.TOKEN_ENCRYPTION_KEY);
-
-  const isSecure = env.WORKER_URL?.startsWith('https://') ?? false;
-  setCookie(c, 'oauth_state', state, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
-  setCookie(c, 'oauth_verifier', encryptedVerifier, { path: '/', httpOnly: true, secure: isSecure, sameSite: isSecure ? 'None' : 'Lax', maxAge: 60 * 5 });
+  // Encrypt target userId and codeVerifier into the state parameter
+  // This makes the OAuth flow stateless, immune to cookie loss on redirect, and avoids KV writes!
+  const stateObj = {
+    userId: c.get('userId'),
+    codeVerifier
+  };
+  const state = await encrypt(JSON.stringify(stateObj), env.TOKEN_ENCRYPTION_KEY);
   
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
@@ -95,16 +95,14 @@ drivesRouter.get('/', async (c) => {
       return { ...drive, freeSpace, usagePercent };
     }
 
-    const encryptedTokens = await c.env.KV.get(`tokens:${drive.id}`);
+    const encryptedTokens = drive.encryptedTokens;
     if (!encryptedTokens) return { ...drive, freeSpace: 0, usagePercent: 0 };
     const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
 
     try {
       // Use the robust GoogleDriveService which handles token caching & refreshing
       const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
-      
-      // Ensure available under oauth: prefix for GoogleDriveService
-      await c.env.KV.put(`oauth:${drive.id}`, tokenJson);
+      driveService.db = c.env.DB;
       
       const quota = await driveService.getQuota(drive.id);
 
@@ -197,6 +195,7 @@ drivesRouter.post('/:id/sync', async (c) => {
 
   const drive = mapDriveRow(row as Record<string, unknown>);
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = c.env.DB;
   
   c.executionCtx.waitUntil(syncDriveAccount(drive, c.env.DB, c.env.KV, driveService, {
     waitUntil: (p) => c.executionCtx.waitUntil(p),
@@ -270,15 +269,13 @@ drivesRouter.post('/:driveId/folders/:googleFolderId/sync', async (c) => {
     });
   }
 
-  // Fetch tokens
-  const encryptedTokens = await c.env.KV.get(`tokens:${driveId}`);
+  // Fetch tokens from D1 driveRow
+  const encryptedTokens = (driveRow as Record<string, unknown>).encrypted_tokens as string | null;
   if (!encryptedTokens) return c.json({ error: 'No tokens for drive' }, 400);
   const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
 
-  // Ensure available under oauth: prefix for GoogleDriveService
-  await c.env.KV.put(`oauth:${driveId}`, tokenJson);
-
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = c.env.DB;
   const { files: gFiles, folders: gFolders } = await driveService.listFolderContents(driveId, googleFolderId);
 
   const ownerUserId = (driveRow as Record<string, unknown>).user_id as string;
@@ -387,13 +384,16 @@ drivesRouter.post('/telegram', async (c) => {
     driveId, userId, channelId, 'telegram@omnicloud.local', displayName, 'telegram', channelId, 100 * 1024 * 1024 * 1024 * 1024
   ).run();
 
-  // Store the bot token in KV
+  // Store the bot token in D1 instead of KV to bypass daily KV limits
   const tokens = {
     accessToken: botToken,
     refreshToken: '',
     expiresAt: Date.now() + 100 * 365 * 24 * 3600 * 1000,
   };
-  await c.env.KV.put(`tokens:${driveId}`, JSON.stringify(tokens));
+  const encryptedTokens = await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY);
+  await c.env.DB.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+    .bind(encryptedTokens, driveId)
+    .run();
 
   return c.json({ success: true, driveId });
 });
@@ -423,7 +423,10 @@ drivesRouter.post('/service-account', async (c) => {
     refreshToken: '',
     expiresAt: Date.now() + 100 * 365 * 24 * 3600 * 1000,
   };
-  await c.env.KV.put(`tokens:${driveId}`, JSON.stringify(tokens));
+  const encryptedTokens = await encrypt(JSON.stringify(tokens), c.env.TOKEN_ENCRYPTION_KEY);
+  await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+    .bind(encryptedTokens, driveId)
+    .run();
 
   return c.json({ success: true, driveId });
 });

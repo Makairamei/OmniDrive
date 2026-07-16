@@ -324,6 +324,7 @@ s3Router.get('/:bucket/:key{.+}', async (c) => {
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = c.env.DB;
 
   const { stream } = await driveService.downloadFile(file.drive_account_id, file.google_file_id);
   c.header('Content-Type', file.mime_type || 'application/octet-stream');
@@ -365,6 +366,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY
     );
+    driveService.db = c.env.DB;
 
     try {
       await driveService.deleteFile(upload.drive_account_id, upload.temp_folder_id);
@@ -397,6 +399,7 @@ s3Router.delete('/:bucket/:key{.+}', async (c) => {
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = c.env.DB;
 
   // Trash/delete file in Google Drive and update SQLite
   await driveService.deleteFile(file.drive_account_id, file.google_file_id);
@@ -460,6 +463,7 @@ s3Router.put('/:bucket/:key{.+}', async (c) => {
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = c.env.DB;
 
   const pathParts = key.split('/');
   const fileName = pathParts.pop();
@@ -549,6 +553,7 @@ async function handleUploadPart(c: any, uploadId: string, partNumber: number): P
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = c.env.DB;
 
   // Upload part as a separate temporary file inside temp_folder_id in Google Drive
   const partFileName = `part_${partNumber}`;
@@ -607,6 +612,7 @@ s3Router.post('/:bucket/:key{.+}', async (c) => {
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = c.env.DB;
 
   // 1. Initiate Multipart Upload
   if (uploadsParam !== undefined) {

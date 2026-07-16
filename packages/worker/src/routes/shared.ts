@@ -409,6 +409,7 @@ sharedRouter.get('/:id/download', async (c) => {
       c.env.GOOGLE_CLIENT_SECRET,
       c.env.TOKEN_ENCRYPTION_KEY
     );
+    driveService.db = db;
 
     let stream: ReadableStream<Uint8Array>;
     let finalMimeType = (file.mime_type as string) || 'application/octet-stream';

@@ -350,6 +350,7 @@ foldersRouter.post('/:id/sync', async (c) => {
   
   if (results && results.length > 0) {
     const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    driveService.db = db;
     for (const row of results) {
        const drive = mapDriveRow(row as any);
        c.executionCtx.waitUntil(syncDriveAccount(drive, db, c.env.KV, driveService).catch(console.error));

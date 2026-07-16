@@ -9,6 +9,7 @@ import { UploadRouter } from '../services/upload-router';
 import { AutomationEngine } from '../services/automation.service';
 import { PolicyService } from '../services/policy.service';
 import { mapDriveRow, mapFileRow, mapFolderRow } from '../types';
+import { decryptOrPassthrough } from '../lib/crypto';
 
 export const filesRouter = new Hono<AppContext>({ strict: false });
 
@@ -279,6 +280,7 @@ filesRouter.post('/:id/move-drive', async (c) => {
   }
 
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = db;
 
   let sharePermissionId: string | null = null;
   let copySuccessId: string | null = null;
@@ -374,9 +376,10 @@ filesRouter.post('/upload/init', async (c) => {
   const router = new UploadRouter(drives);
   const targetDrive = router.selectDriveForUpload(size);
 
-  // 3. Get token for target drive
-  const tokenJson = await c.env.KV.get(`tokens:${targetDrive.id}`);
-  if (!tokenJson) throw new AppError(401, 'Drive token missing');
+  // 3. Get token for target drive from D1 (stateless / bypass KV limit)
+  const encryptedTokens = targetDrive.encryptedTokens;
+  if (!encryptedTokens) throw new AppError(401, 'Drive token missing');
+  const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
   const tokens = JSON.parse(tokenJson);
 
   // 4. Create upload session (Google resumable upload URL or Telegram Helper endpoint)
@@ -430,6 +433,7 @@ filesRouter.post('/upload/finalize', async (c) => {
   } else {
     // Fetch file metadata from Google Drive
     const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+    driveService.db = db;
     const gFile = await driveService.getFile(driveAccountId, googleFileId);
     finalFileId = gFile.id;
     finalName = gFile.name;
@@ -546,6 +550,7 @@ filesRouter.delete('/:id/permanent', async (c) => {
   }
 
   const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = db;
   
   try {
     await driveService.deleteFile(file.driveId, file.google_file_id);
@@ -607,11 +612,13 @@ filesRouter.get('/:id/download', async (c) => {
     throw new AppError(403, 'Forbidden');
   }
 
-  const drive = await db.prepare('SELECT type, root_folder_id FROM drive_accounts WHERE id = ?')
-    .bind(file.drive_account_id).first<{ type: string; root_folder_id: string }>();
+  const drive = await db.prepare('SELECT type, root_folder_id, encrypted_tokens FROM drive_accounts WHERE id = ?')
+    .bind(file.drive_account_id).first<{ type: string; root_folder_id: string; encrypted_tokens: string | null }>();
 
   if (drive && drive.type === 'telegram') {
-    const tokenJson = await c.env.KV.get(`tokens:${file.drive_account_id}`);
+    const encryptedTokens = drive.encrypted_tokens;
+    if (!encryptedTokens) throw new AppError(400, 'Drive token missing');
+    const tokenJson = await decryptOrPassthrough(encryptedTokens, c.env.TOKEN_ENCRYPTION_KEY);
     const tokens = JSON.parse(tokenJson || '{}');
     const helperUrl = c.env.TELEGRAM_HELPER_URL || 'http://localhost:8899';
     const downloadUrl = `${helperUrl}/download/${drive.root_folder_id}/${file.google_file_id}?auth=${encodeURIComponent(tokens.accessToken || '')}`;
@@ -624,6 +631,7 @@ filesRouter.get('/:id/download', async (c) => {
     c.env.GOOGLE_CLIENT_SECRET,
     c.env.TOKEN_ENCRYPTION_KEY
   );
+  driveService.db = db;
 
   let stream: ReadableStream<Uint8Array>;
   let finalMimeType = (file.mime_type as string) || 'application/octet-stream';
