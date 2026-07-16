@@ -83,73 +83,6 @@ export async function syncDriveAccount(
   }
 }
 
-async function recursiveSyncFolder(
-  drive: DriveAccount,
-  db: D1Database,
-  driveService: GoogleDriveService,
-  folderId: string,
-  rootFolderId: string,
-  statements: any[]
-): Promise<void> {
-  try {
-    const { files, folders } = await driveService.listFolderContents(drive.id, folderId);
-    
-    for (const folder of folders) {
-      const parentId = resolveParentId(folder.parents, rootFolderId, true);
-      
-      const folderId = generateId();
-      statements.push(db.prepare(
-        `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
-         VALUES (?, ?, ?, ?, ?, 0)
-         ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
-           name = excluded.name,
-           google_parent_id = excluded.google_parent_id`
-      ).bind(folderId, drive.id, folder.id, parentId, folder.name));
-
-      // Recursively sync subfolders
-      await recursiveSyncFolder(drive, db, driveService, folder.id, rootFolderId, statements);
-    }
-    
-    for (const file of files) {
-      const parentId = resolveParentId(file.parents, rootFolderId, false);
-      
-      const fileId = generateId();
-      statements.push(db.prepare(
-        `INSERT INTO files
-           (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
-            thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-         ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
-           name = excluded.name,
-           mime_type = excluded.mime_type,
-           size = excluded.size,
-           thumbnail_url = excluded.thumbnail_url,
-           web_view_link = excluded.web_view_link,
-           web_content_link = excluded.web_content_link,
-           google_modified_at = excluded.google_modified_at,
-           google_parent_id = excluded.google_parent_id,
-           synced_at = excluded.synced_at`
-      ).bind(
-        fileId,
-        drive.userId,
-        drive.id,
-        file.id,
-        parentId,
-        file.name,
-        file.mimeType,
-        parseInt(file.size ?? '0', 10),
-        file.thumbnailLink ?? null,
-        file.webViewLink ?? null,
-        file.webContentLink ?? null,
-        file.createdTime,
-        file.modifiedTime
-      ));
-    }
-  } catch (err) {
-    console.error(`Failed to recursively sync folder ${folderId}:`, err);
-  }
-}
-
 async function performInitialSync(
   drive: DriveAccount,
   db: D1Database,
@@ -163,10 +96,94 @@ async function performInitialSync(
     : await driveService.getRootFolderId(drive.id);
 
   if (drive.type === 'service_account' && drive.rootFolderId) {
+    // 1. Ensure the root folder is in drive_folders table so we can sync it
+    const existingRoot = await db
+      .prepare('SELECT id FROM drive_folders WHERE drive_account_id = ? AND google_folder_id = ?')
+      .bind(drive.id, drive.rootFolderId)
+      .first();
+      
+    if (!existingRoot) {
+      const folderId = generateId();
+      await db
+        .prepare('INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced) VALUES (?, ?, ?, ?, ?, 0)')
+        .bind(folderId, drive.id, drive.rootFolderId, null, drive.name || 'Root')
+        .run();
+    }
+
+    // 2. Fetch up to 15 unsynced folders for this drive
+    const { results: unsyncedFolders } = await db
+      .prepare('SELECT google_folder_id FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0 LIMIT 15')
+      .bind(drive.id)
+      .all<{ google_folder_id: string }>();
+
+    if (unsyncedFolders.length === 0) {
+      // All folders are fully synced!
+      return true;
+    }
+
     const statements: any[] = [];
-    await recursiveSyncFolder(drive, db, driveService, drive.rootFolderId, drive.rootFolderId, statements);
     
-    // Execute all statements in batches of 50 to prevent timeouts and D1 query size limit
+    for (const folder of unsyncedFolders) {
+      try {
+        const { files, folders } = await driveService.listFolderContents(drive.id, folder.google_folder_id);
+        
+        // Mark this folder as synced
+        statements.push(db.prepare(
+          'UPDATE drive_folders SET is_synced = 1, synced_at = datetime("now") WHERE drive_account_id = ? AND google_folder_id = ?'
+        ).bind(drive.id, folder.google_folder_id));
+
+        for (const subfolder of folders) {
+          const parentId = resolveParentId(subfolder.parents, drive.rootFolderId, true);
+          const folderId = generateId();
+          statements.push(db.prepare(
+            `INSERT INTO drive_folders (id, drive_account_id, google_folder_id, google_parent_id, name, is_synced)
+             VALUES (?, ?, ?, ?, ?, 0)
+             ON CONFLICT(drive_account_id, google_folder_id) DO UPDATE SET
+               name = excluded.name,
+               google_parent_id = excluded.google_parent_id`
+          ).bind(folderId, drive.id, subfolder.id, parentId, subfolder.name));
+        }
+
+        for (const file of files) {
+          const parentId = resolveParentId(file.parents, drive.rootFolderId, false);
+          const fileId = generateId();
+          statements.push(db.prepare(
+            `INSERT INTO files
+               (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
+                thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+             ON CONFLICT(drive_account_id, google_file_id) DO UPDATE SET
+               name = excluded.name,
+               mime_type = excluded.mime_type,
+               size = excluded.size,
+               thumbnail_url = excluded.thumbnail_url,
+               web_view_link = excluded.web_view_link,
+               web_content_link = excluded.web_content_link,
+               google_modified_at = excluded.google_modified_at,
+               google_parent_id = excluded.google_parent_id,
+               synced_at = excluded.synced_at`
+          ).bind(
+            fileId,
+            drive.userId,
+            drive.id,
+            file.id,
+            parentId,
+            file.name,
+            file.mimeType,
+            parseInt(file.size ?? '0', 10),
+            file.thumbnailLink ?? null,
+            file.webViewLink ?? null,
+            file.webContentLink ?? null,
+            file.createdTime,
+            file.modifiedTime
+          ));
+        }
+      } catch (err) {
+        console.error(`Failed to sync folder ${folder.google_folder_id}:`, err);
+      }
+    }
+
+    // Execute all statements in batches of 50
     const chunkSize = 50;
     for (let i = 0; i < statements.length; i += chunkSize) {
       const chunk = statements.slice(i, i + chunkSize);
