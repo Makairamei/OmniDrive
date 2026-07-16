@@ -245,7 +245,10 @@ export class GoogleDriveService {
       storageQuota: { limit?: string; usage?: string };
     } = await response.json();
 
-    const total = parseInt(data.storageQuota.limit ?? '0', 10);
+    let total = parseInt(data.storageQuota.limit ?? '0', 10);
+    if (total === 0) {
+      total = 15 * 1024 * 1024 * 1024; // Default to 15 GB
+    }
     const used = parseInt(data.storageQuota.usage ?? '0', 10);
 
     // Cache in KV (5-min TTL)
