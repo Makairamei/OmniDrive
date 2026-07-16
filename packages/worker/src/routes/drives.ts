@@ -185,10 +185,9 @@ drivesRouter.post('/:id/sync', async (c) => {
   const userId = c.get('userId');
   const driveId = c.req.param('id');
 
-  const row = await c.env.DB
-    .prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?')
-    .bind(driveId, userId)
-    .first();
+  const row = userId === 'system'
+    ? await c.env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(driveId).first()
+    : await c.env.DB.prepare('SELECT * FROM drive_accounts WHERE id = ? AND user_id = ?').bind(driveId, userId).first();
 
   if (!row) return c.json({ error: 'Drive not found' }, 404);
 
