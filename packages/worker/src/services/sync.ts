@@ -50,12 +50,27 @@ export async function syncDriveAccount(
     let changeToken = syncState?.change_token;
     let nextPageToken = syncState?.next_page_token;
 
-    if (!changeToken) {
+    // Check if we still have folders that need initial sync
+    const hasUnsynced = await db
+      .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
+      .bind(drive.id)
+      .first<{ count: number }>();
+      
+    const isInitialSyncComplete = !hasUnsynced || hasUnsynced.count === 0;
+
+    if (!changeToken || !isInitialSyncComplete) {
       const completed = await performInitialSync(drive, db, driveService, nextPageToken ?? undefined);
       if (!completed) {
         throw new Error('Initial sync interrupted by shutdown');
       }
-      changeToken = await driveService.getStartPageToken(drive.id);
+      // Only get start page token when initial sync is fully done
+      const checkDone = await db
+        .prepare('SELECT COUNT(*) as count FROM drive_folders WHERE drive_account_id = ? AND is_synced = 0')
+        .bind(drive.id)
+        .first<{ count: number }>();
+      if (!checkDone || checkDone.count === 0) {
+        changeToken = await driveService.getStartPageToken(drive.id);
+      }
     } else {
       changeToken = await performIncrementalSync(drive, db, changeToken, driveService);
     }
