@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
-import * as bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppContext, SessionData } from '../types/env';
 import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/error-handler';
@@ -20,6 +20,7 @@ authRouter.get('/setup-status', async (c) => {
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
   return c.json({ isSetup: (result?.count || 0) > 0 });
 });
+
 
 authRouter.post('/register', async (c) => {
   const { name, username, password, email, invitation_code } = await c.req.json();
@@ -52,7 +53,7 @@ authRouter.post('/register', async (c) => {
   }
 
   const id = generateId();
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await hashPassword(password);
   const isSuperAdmin = isSetup ? 0 : 1;
   
   await db.prepare(
@@ -74,7 +75,7 @@ authRouter.post('/login', async (c) => {
   if (!username || !password) throw new AppError(400, 'Username and password required');
 
   const user = await c.env.DB.prepare('SELECT id, username, password_hash, email, name, avatar_url, is_super_admin FROM users WHERE username = ?').bind(username).first<any>();
-  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
     throw new AppError(401, 'Invalid credentials');
   }
 
