@@ -149,6 +149,7 @@ authRouter.get('/callback', async (c) => {
   if (driveRow) {
     const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
     const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+    driveService.db = db;
     c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, env.KV, driveService));
   }
 

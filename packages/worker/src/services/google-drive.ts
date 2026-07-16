@@ -33,6 +33,7 @@ export class GoogleDriveError extends Error {
 
 export class GoogleDriveService {
   private encryptionKey?: string;
+  public db?: D1Database;
 
   constructor(
     private kv: KVNamespace,
@@ -48,8 +49,9 @@ export class GoogleDriveService {
   async getValidToken(driveAccountId: string, db?: D1Database): Promise<string> {
     // Try D1 database first, fallback to KV to bypass daily KV limits
     let raw: string | null = null;
-    if (db) {
-      const row = await db.prepare('SELECT encrypted_tokens FROM drive_accounts WHERE id = ?')
+    const activeDb = db || this.db;
+    if (activeDb) {
+      const row = await activeDb.prepare('SELECT encrypted_tokens FROM drive_accounts WHERE id = ?')
         .bind(driveAccountId)
         .first<{ encrypted_tokens: string }>();
       raw = row?.encrypted_tokens ?? null;
@@ -218,19 +220,20 @@ export class GoogleDriveService {
       expiresAt: Date.now() + data.expires_in * 1000,
     } satisfies OAuthTokens);
 
+    const activeDb = db || this.db;
     if (this.encryptionKey) {
       const { encrypt } = await import('../lib/crypto');
       const encrypted = await encrypt(newTokens, this.encryptionKey);
-      if (db) {
-        await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+      if (activeDb) {
+        await activeDb.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
           .bind(encrypted, driveAccountId)
           .run();
       } else {
         await this.kv.put(`tokens:${driveAccountId}`, encrypted);
       }
     } else {
-      if (db) {
-        await db.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
+      if (activeDb) {
+        await activeDb.prepare('UPDATE drive_accounts SET encrypted_tokens = ? WHERE id = ?')
           .bind(newTokens, driveAccountId)
           .run();
       } else {

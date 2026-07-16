@@ -436,6 +436,7 @@ export async function runScheduledSync(env: {
   if (getIsShuttingDown()) return;
 
   const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = env.DB;
 
   // Find ALL drives that have unsynced folders (initial sync not complete)
   const pendingRows = await env.DB.prepare(`
