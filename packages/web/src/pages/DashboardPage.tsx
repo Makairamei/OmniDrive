@@ -4,6 +4,7 @@ import { QuotaBar } from '../components/QuotaBar';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { CopyDriveModal } from '../components/CopyDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { formatFileSize, getDriveColor } from '../lib/utils';
 import { api } from '../lib/api';
@@ -18,6 +19,7 @@ export function DashboardPage() {
   const [recentFolders, setRecentFolders] = useState<any[]>([]);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [copyDriveFiles, setCopyDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const { addToast } = useToastStore();
   
@@ -125,6 +127,7 @@ export function DashboardPage() {
               }}
               onShare={(id, type) => setShareTarget({ id, type })}
               onMoveDrive={(file) => setMoveDriveFiles([file])}
+              onCopyDrive={(file) => setCopyDriveFiles([file])}
               onPreviewFile={setPreviewFile}
               isTargetShared={isTargetShared}
               viewMode="list"
@@ -159,6 +162,22 @@ export function DashboardPage() {
             console.error('Error moving file(s):', msg);
             addToast('error', 'Failed to move file(s)');
             setMoveDriveFiles([]);
+          }}
+        />
+      )}
+
+      {copyDriveFiles.length > 0 && (
+        <CopyDriveModal
+          files={copyDriveFiles}
+          onClose={() => setCopyDriveFiles([])}
+          onSuccess={() => {
+            setCopyDriveFiles([]);
+            refreshRecent();
+          }}
+          onError={(msg) => {
+            console.error('Error copying file(s):', msg);
+            addToast('error', 'Failed to copy file(s)');
+            setCopyDriveFiles([]);
           }}
         />
       )}

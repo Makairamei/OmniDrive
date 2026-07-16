@@ -9,6 +9,7 @@ import { UploadModal } from '../components/UploadModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { CopyDriveModal } from '../components/CopyDriveModal';
 import { AddToWorkspaceModal } from '../components/workspaces/AddToWorkspaceModal';
 import { Upload, FolderPlus, X, LayoutGrid, List, Info } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
@@ -32,6 +33,7 @@ export function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [copyDriveFiles, setCopyDriveFiles] = useState<FileEntry[]>([]);
   const [workspaceTarget, setWorkspaceTarget] = useState<FileEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { viewMode, setViewMode, isInfoPanelOpen, toggleInfoPanel, setIsInfoPanelOpen } = useUIStore();
@@ -196,6 +198,7 @@ export function FilesPage() {
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
               onMoveDrive={(file) => setMoveDriveFiles([file])}
+              onCopyDrive={(file) => setCopyDriveFiles([file])}
               onAddToWorkspace={setWorkspaceTarget}
               onViewInfo={handleViewInfo}
               isTargetShared={isTargetShared}
@@ -227,6 +230,22 @@ export function FilesPage() {
               console.error(err);
               addToast('error', 'Failed to move file(s)');
               setMoveDriveFiles([]);
+            }}
+          />
+        )}
+        {copyDriveFiles.length > 0 && (
+          <CopyDriveModal
+            files={copyDriveFiles}
+            onClose={() => setCopyDriveFiles([])}
+            onSuccess={() => {
+              setCopyDriveFiles([]);
+              clearSelection();
+              refresh();
+            }}
+            onError={(err) => {
+              console.error(err);
+              addToast('error', 'Failed to copy file(s)');
+              setCopyDriveFiles([]);
             }}
           />
         )}

@@ -6,6 +6,7 @@ import { useToastStore } from '../stores/toastStore';
 import { FileGrid } from '../components/files/FileGrid';
 import { ShareModal } from '../components/ShareModal';
 import { MoveDriveModal } from '../components/MoveDriveModal';
+import { CopyDriveModal } from '../components/CopyDriveModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { api } from '../lib/api';
 import type { FileEntry } from '../types';
@@ -23,6 +24,7 @@ export function SearchPage() {
   
   const [shareTarget, setShareTarget] = useState<{ id: string, type: 'file' | 'folder' } | null>(null);
   const [moveDriveFiles, setMoveDriveFiles] = useState<FileEntry[]>([]);
+  const [copyDriveFiles, setCopyDriveFiles] = useState<FileEntry[]>([]);
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
 
   const fetchResults = useCallback(async (q: string, signal?: AbortSignal) => {
@@ -82,6 +84,7 @@ export function SearchPage() {
             getDriveInfo={getDriveInfo}
             onShare={(id, type) => setShareTarget({ id, type })}
             onMoveDrive={(file) => setMoveDriveFiles([file])}
+            onCopyDrive={(file) => setCopyDriveFiles([file])}
             onPreviewFile={setPreviewFile}
             isTargetShared={isTargetShared}
             viewMode="list"
@@ -113,6 +116,22 @@ export function SearchPage() {
             console.error('Error moving file(s):', msg);
             addToast('error', 'Failed to move file(s)');
             setMoveDriveFiles([]);
+          }}
+        />
+      )}
+
+      {copyDriveFiles.length > 0 && (
+        <CopyDriveModal
+          files={copyDriveFiles}
+          onClose={() => setCopyDriveFiles([])}
+          onSuccess={() => {
+            setCopyDriveFiles([]);
+            fetchResults(query);
+          }}
+          onError={(msg) => {
+            console.error('Error copying file(s):', msg);
+            addToast('error', 'Failed to copy file(s)');
+            setCopyDriveFiles([]);
           }}
         />
       )}

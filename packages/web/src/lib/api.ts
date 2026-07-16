@@ -129,6 +129,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ targetDriveId }),
     }),
+  copyFileToDrive: (id: string, targetDriveId: string) =>
+    request<{ file: import('../types').FileEntry }>(`/api/files/${id}/copy-drive`, {
+      method: 'POST',
+      body: JSON.stringify({ targetDriveId }),
+    }),
 
   // Trash
   getTrashFiles: () =>

@@ -48,6 +48,7 @@ const ItemContextMenuContent: React.FC<{
   onShare?: (id: string, type: 'file' | 'folder') => void;
   onRenameFile?: (id: string, name: string) => void;
   onMoveDrive?: (file: FileEntry) => void;
+  onCopyDrive?: (file: FileEntry) => void;
   onDeleteFile?: (id: string) => void;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
@@ -68,6 +69,7 @@ const ItemContextMenuContent: React.FC<{
   onShare,
   onRenameFile,
   onMoveDrive,
+  onCopyDrive,
   onDeleteFile,
   onRestore,
   onPermanentDelete,
@@ -151,6 +153,11 @@ const ItemContextMenuContent: React.FC<{
             <ExternalLink className="mr-2 h-4 w-4" /> Move to another drive
           </ContextMenuItem>
         )}
+        {type === 'file' && onCopyDrive && file && (
+          <ContextMenuItem onClick={() => onCopyDrive(file)}>
+            <ExternalLink className="mr-2 h-4 w-4" /> Copy to another drive
+          </ContextMenuItem>
+        )}
         {type === 'file' && onDeleteFile && id && (
           <>
             <ContextMenuSeparator />
@@ -178,6 +185,7 @@ export interface FileGridProps {
   isTargetShared?: (id: string, type: 'file' | 'folder') => boolean;
   errorDrives?: Set<string>;
   onMoveDrive?: (file: FileEntry) => void;
+  onCopyDrive?: (file: FileEntry) => void;
   /** Override viewMode (optional). If not provided, reads from UIStore. */
   viewMode?: 'grid' | 'list';
   isTrashView?: boolean;
@@ -222,6 +230,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
   isTargetShared,
   errorDrives,
   onMoveDrive,
+  onCopyDrive,
   viewMode: viewModeProp,
   isTrashView,
   onRestore,
@@ -470,6 +479,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
                 onShare={onShare}
                 onRenameFile={onRenameFile}
                 onMoveDrive={onMoveDrive}
+                onCopyDrive={onCopyDrive}
                 onDeleteFile={onDeleteFile}
                 onRestore={onRestore}
                 onPermanentDelete={onPermanentDelete}
@@ -650,6 +660,7 @@ export const FileGrid: React.FC<FileGridProps> = ({
               onShare={onShare}
               onRenameFile={onRenameFile}
               onMoveDrive={onMoveDrive}
+              onCopyDrive={onCopyDrive}
               onDeleteFile={onDeleteFile}
               onRestore={onRestore}
               onPermanentDelete={onPermanentDelete}

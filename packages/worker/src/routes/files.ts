@@ -347,6 +347,109 @@ filesRouter.post('/:id/move-drive', async (c) => {
   }
 });
 
+// Copy file to another drive
+filesRouter.post('/:id/copy-drive', async (c) => {
+  const userId = c.get('userId');
+  const fileId = c.req.param('id');
+  const body = await c.req.json();
+  const targetDriveId = body.targetDriveId;
+
+  if (typeof targetDriveId !== 'string' || !targetDriveId.trim()) {
+    throw new AppError(400, 'Target drive ID must be a non-empty string');
+  }
+
+  const db = c.env.DB;
+
+  const file = await db.prepare(
+    `SELECT f.*, d.email as driveEmail, d.id as sourceDriveId
+     FROM files f
+     JOIN drive_accounts d ON f.drive_account_id = d.id
+     WHERE f.id = ? AND f.user_id = ?`
+  ).bind(fileId, userId).first<{ driveEmail: string; sourceDriveId: string; google_file_id: string; name: string; mime_type: string; size: number; thumbnail_url: string; web_view_link: string; web_content_link: string; google_created_at: string; google_modified_at: string }>();
+
+  if (!file) {
+    throw new AppError(404, 'File not found or unauthorized');
+  }
+
+  const targetDrive = await db.prepare(
+    'SELECT id, email FROM drive_accounts WHERE id = ? AND user_id = ?'
+  ).bind(targetDriveId, userId).first<{ id: string; email: string }>();
+
+  if (!targetDrive) {
+    throw new AppError(404, 'Target drive not found or unauthorized');
+  }
+
+  const driveService = new GoogleDriveService(c.env.KV, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, c.env.TOKEN_ENCRYPTION_KEY);
+  driveService.db = db;
+
+  let sharePermissionId: string | null = null;
+  let copySuccessId: string | null = null;
+
+  try {
+    sharePermissionId = await driveService.shareFile(
+      file.sourceDriveId,
+      file.google_file_id,
+      targetDrive.email,
+      'writer'
+    );
+
+    const copiedFile = await driveService.copyFile(
+      targetDriveId,
+      file.google_file_id
+    );
+    copySuccessId = copiedFile.id;
+
+    try {
+      if (sharePermissionId) {
+        await driveService.revokeShare(file.sourceDriveId, file.google_file_id, sharePermissionId);
+        sharePermissionId = null;
+      }
+    } catch (revokeError) {
+      console.error('Failed to revoke share after copy:', revokeError);
+    }
+
+    const newFileId = generateId();
+    await db.prepare(
+      `INSERT INTO files 
+         (id, user_id, drive_account_id, google_file_id, google_parent_id, name, mime_type, size,
+          thumbnail_url, web_view_link, web_content_link, google_created_at, google_modified_at, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(
+      newFileId,
+      userId,
+      targetDriveId,
+      copiedFile.id,
+      null, // copy to root of target drive
+      file.name,
+      file.mime_type,
+      file.size,
+      file.thumbnail_url,
+      file.web_view_link,
+      file.web_content_link,
+      file.google_created_at,
+      file.google_modified_at
+    ).run();
+
+    const createdFile = await db.prepare('SELECT * FROM files WHERE id = ?').bind(newFileId).first<Record<string, unknown>>();
+    
+    return c.json({ file: mapFileRow(createdFile!), success: true });
+  } catch (error) {
+    console.error('Copy drive failed:', error);
+    
+    if (copySuccessId) {
+      try { await driveService.deleteFile(targetDriveId, copySuccessId); }
+      catch (e) { console.error('Rollback delete failed:', e); }
+    }
+    
+    if (sharePermissionId) {
+      try { await driveService.revokeShare(file.sourceDriveId, file.google_file_id, sharePermissionId); }
+      catch (e) { console.error('Failed to revoke share:', e); }
+    }
+    
+    throw new AppError(500, 'Failed to copy file to another drive');
+  }
+});
+
 // Initialize upload (returns Google Drive Resumable URL)
 filesRouter.post('/upload/init', async (c) => {
   const userId = c.get('userId');
