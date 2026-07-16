@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useDriveStore } from '../stores/driveStore';
 import { DriveAccountCard } from '../components/DriveAccountCard';
 import { useToastStore } from '../stores/toastStore';
@@ -20,7 +20,6 @@ const parseSqliteDate = (dateVal: any) => {
 export function SettingsPage() {
   const { drives, fetchDrives, removeDrive, triggerSync, stopSync } = useDriveStore();
   const { addToast } = useToastStore();
-  const syncCancelledRef = useRef<Record<string, boolean>>({});
   const [showSaForm, setShowSaForm] = useState(false);
   const [saCredentials, setSaCredentials] = useState('');
   const [saFolderId, setSaFolderId] = useState('');
@@ -139,69 +138,9 @@ export function SettingsPage() {
 
   const handleSync = async (id: string) => {
     try {
-      addToast('info', 'Sync started...');
-      syncCancelledRef.current[id] = false;
-      
-      let isDone = false;
-      while (!isDone) {
-        if (syncCancelledRef.current[id]) {
-          break;
-        }
-
-        // Trigger the sync batch (runs in background)
-        const res = await triggerSync(id);
-        
-        // If the backend says there are no folders left to sync, we are done!
-        if (res.isDone) {
-          isDone = true;
-          break;
-        }
-
-        // Poll every 2 seconds until the drive status returns to 'idle' (batch complete)
-        await new Promise<void>((resolve, reject) => {
-          const interval = setInterval(async () => {
-            if (syncCancelledRef.current[id]) {
-              clearInterval(interval);
-              resolve();
-              return;
-            }
-
-            try {
-              await fetchDrives();
-              const currentDrives = useDriveStore.getState().drives;
-              const drive = currentDrives.find(d => d.id === id);
-              
-              if (!drive) {
-                clearInterval(interval);
-                reject(new Error('Drive not found'));
-                return;
-              }
-
-              // If it's no longer syncing (either idle or error), the batch is done!
-              if (drive.syncStatus === 'idle' || drive.syncStatus === 'error') {
-                clearInterval(interval);
-                resolve();
-              }
-            } catch (err) {
-              clearInterval(interval);
-              reject(err);
-            }
-          }, 2000);
-        });
-
-        // Double check drive status after batch finishes
-        const currentDrives = useDriveStore.getState().drives;
-        const drive = currentDrives.find(d => d.id === id);
-        if (drive && drive.syncStatus === 'error') {
-          throw new Error('Batch sync failed');
-        }
-      }
-
-      if (syncCancelledRef.current[id]) {
-        addToast('success', 'Sync stopped');
-      } else {
-        addToast('success', 'Sync completed');
-      }
+      addToast('info', 'Sync started in the background...');
+      await triggerSync(id);
+      fetchDrives();
     } catch {
       addToast('error', 'Sync failed');
     }
@@ -209,8 +148,8 @@ export function SettingsPage() {
 
   const handleStopSync = async (id: string) => {
     try {
-      syncCancelledRef.current[id] = true;
       await stopSync(id);
+      addToast('success', 'Sync stopped');
       fetchDrives();
     } catch {
       addToast('error', 'Failed to stop sync');
