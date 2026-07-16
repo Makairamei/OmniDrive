@@ -95,6 +95,64 @@ authRouter.post('/login', async (c) => {
   return c.json({ success: true, user: sessionData });
 });
 
+authRouter.get('/callback', async (c) => {
+  const code = c.req.query('code');
+  if (!code) throw new AppError(400, 'Authorization code missing');
+
+  const state = c.req.query('state');
+  if (!state) throw new AppError(400, 'State parameter missing');
+
+  const env = c.env;
+  
+  // Decrypt state parameter which contains targetUserId and codeVerifier (stateless OAuth validation)
+  let decryptedState: { userId: string; codeVerifier: string };
+  try {
+    const decryptedStr = await decrypt(state, env.TOKEN_ENCRYPTION_KEY);
+    decryptedState = JSON.parse(decryptedStr);
+  } catch (err) {
+    throw new AppError(400, 'Invalid state parameter or state expired');
+  }
+
+  const targetUserId = decryptedState.userId;
+  const codeVerifier = decryptedState.codeVerifier;
+
+  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
+  const authService = new AuthService(env);
+
+  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, codeVerifier);
+  const googleUser = await authService.fetchUserInfo(tokens.accessToken);
+
+  const db = env.DB;
+
+  await db.prepare('UPDATE users SET google_id = ? WHERE id = ?')
+    .bind(googleUser.id, targetUserId).run();
+
+  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first<{ id: string }>();
+  if (!drive) {
+    const driveId = generateId();
+    const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first<{ count: number }>();
+    const isPrimary = (res && res.count === 0) ? 1 : 0;
+
+    await db.prepare(
+      'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(driveId, targetUserId, googleUser.id, googleUser.email, googleUser.name, 'oauth', isPrimary).run();
+    drive = { id: driveId };
+  }
+
+  // Encrypt tokens before storing
+  const encryptedTokens = await encrypt(JSON.stringify(tokens), env.TOKEN_ENCRYPTION_KEY);
+  await env.KV.put(`tokens:${drive.id}`, encryptedTokens);
+
+  const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(drive.id).first();
+  if (driveRow) {
+    const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
+    const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
+    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, env.KV, driveService));
+  }
+
+  return c.redirect(`${env.FRONTEND_URL}/`);
+});
+
 // Protected routes below
 authRouter.use('*', authGuard);
 
@@ -131,61 +189,7 @@ authRouter.get('/google', async (c) => {
   return c.redirect(authUrl.toString());
 });
 
-authRouter.get('/callback', async (c) => {
-  const code = c.req.query('code');
-  if (!code) throw new AppError(400, 'Authorization code missing');
 
-  const state = c.req.query('state');
-  const savedState = getCookie(c, 'oauth_state');
-  if (!state || state !== savedState) {
-    throw new AppError(400, 'Invalid state parameter');
-  }
-  deleteCookie(c, 'oauth_state', { path: '/' });
-
-  // Retrieve PKCE verifier from encrypted cookie instead of KV to bypass daily KV limits
-  const encryptedVerifier = getCookie(c, 'oauth_verifier');
-  if (!encryptedVerifier) throw new AppError(400, 'OAuth state/verifier expired');
-  deleteCookie(c, 'oauth_verifier', { path: '/' });
-
-  const env = c.env;
-  const codeVerifier = await decrypt(encryptedVerifier, env.TOKEN_ENCRYPTION_KEY);
-  const redirectUri = `${env.WORKER_URL}/api/auth/callback`;
-  const authService = new AuthService(env);
-
-  const tokens = await authService.exchangeCodeForTokens(code, redirectUri, codeVerifier);
-  const googleUser = await authService.fetchUserInfo(tokens.accessToken);
-
-  const targetUserId = c.get('userId');
-  const db = env.DB;
-
-  await db.prepare('UPDATE users SET google_id = ? WHERE id = ?')
-    .bind(googleUser.id, targetUserId).run();
-
-  let drive = await db.prepare('SELECT id FROM drive_accounts WHERE google_account_id = ? AND user_id = ?').bind(googleUser.id, targetUserId).first<{ id: string }>();
-  if (!drive) {
-    const driveId = generateId();
-    const res = await db.prepare('SELECT COUNT(*) as count FROM drive_accounts WHERE user_id = ?').bind(targetUserId).first<{ count: number }>();
-    const isPrimary = (res && res.count === 0) ? 1 : 0;
-
-    await db.prepare(
-      'INSERT INTO drive_accounts (id, user_id, google_account_id, email, name, type, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(driveId, targetUserId, googleUser.id, googleUser.email, googleUser.name, 'oauth', isPrimary).run();
-    drive = { id: driveId };
-  }
-
-  // Encrypt tokens before storing
-  const encryptedTokens = await encrypt(JSON.stringify(tokens), env.TOKEN_ENCRYPTION_KEY);
-  await env.KV.put(`tokens:${drive.id}`, encryptedTokens);
-
-  const driveRow = await db.prepare('SELECT * FROM drive_accounts WHERE id = ?').bind(drive.id).first();
-  if (driveRow) {
-    const driveObj = mapDriveRow(driveRow as Record<string, unknown>);
-    const driveService = new GoogleDriveService(env.KV, env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.TOKEN_ENCRYPTION_KEY);
-    c.executionCtx.waitUntil(syncDriveAccount(driveObj, db, env.KV, driveService));
-  }
-
-  return c.redirect(`${env.FRONTEND_URL}/`);
-});
 
 authRouter.get('/me', (c) => {
   return c.json({ user: c.get('session') });
